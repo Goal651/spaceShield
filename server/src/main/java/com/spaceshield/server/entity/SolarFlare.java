@@ -1,17 +1,23 @@
-package com.spaceshield.server.models;
+package com.spaceshield.server.entity;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
+import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 import lombok.Data;
 
+@Entity
+@Table(name = "solar_flares")
 @Data
 public class SolarFlare {
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    private String flareId;
+    private UUID flareId;
 
     private String classType;
 
@@ -22,5 +28,4 @@ public class SolarFlare {
     private LocalDateTime endTime;
 
     private String sourceLocation;
-
 }
