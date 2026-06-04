@@ -1,4 +1,4 @@
-package com.spaceshield.server.dtos;
+package com.spaceshield.server.dtos.solar;
 
 import lombok.Data;
 import lombok.Builder;
@@ -10,17 +10,11 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class AsteroidEventDto {
+public class SolarEventDto {
 
-    private String asteroidId;
+    private String eventId;
 
-    private String asteroidName;
-
-    private Double diameterMeters;
-
-    private Double speedKmPerHour;
-
-    private Double distanceKm;
+    private String classType;
 
     private LocalDateTime timestamp;
 

@@ -1,4 +1,4 @@
-package com.spaceshield.server.dtos;
+package com.spaceshield.server.dtos.dashboard;
 
 import lombok.Data;
 import lombok.Builder;
