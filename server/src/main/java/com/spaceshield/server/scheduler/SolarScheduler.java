@@ -16,10 +16,11 @@ import lombok.extern.slf4j.Slf4j;
 public class SolarScheduler {
     private final NasaApiClient nasaApiClient;
     private final String today = LocalDate.now().toString();
+    private final String nextWeek = LocalDate.now().plusDays(7).toString();
 
     @Scheduled(fixedRate = 300000)
     public void fetchSolarEvents() {
-        nasaApiClient.getSolarFlares(today, today)
+        nasaApiClient.getSolarFlares(today, nextWeek)
                 .doOnNext(solarFlare -> log.info("Solar Flare Data: Flare ID={}, Class Type={}", solarFlare.flrId(),
                         solarFlare.classType()))
                 .subscribe();
