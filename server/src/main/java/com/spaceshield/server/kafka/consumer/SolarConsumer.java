@@ -22,57 +22,52 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class SolarConsumer {
 
-    private final RiskClassifier           riskClassifier;
-    private final SpaceEventProducer       producer;
-    private final SolarFlareRepository     solarFlareRepository;
-    private final RiskAssessmentRepository riskAssessmentRepository;
+        private final RiskClassifier riskClassifier;
+        private final SpaceEventProducer producer;
+        private final SolarFlareRepository solarFlareRepository;
+        private final RiskAssessmentRepository riskAssessmentRepository;
 
-    @KafkaListener(
-            topics           = KafkaTopics.SOLAR,
-            groupId          = "spaceshield-group",
-            containerFactory = "kafkaListenerContainerFactory"
-    )
-    public void consume(
-            @Payload SolarFlareEvent event,
-            @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
-            @Header(KafkaHeaders.OFFSET) long offset
-    ) {
-        log.info("Received solar flare id={} class={} partition={} offset={}",
-                event.flrId(), event.classType(), partition, offset);
+        @KafkaListener(topics = KafkaTopics.SOLAR, groupId = "space-shield-group", containerFactory = "solarFlareFactory")
+        public void consume(
+                        @Payload SolarFlareEvent event,
+                        @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
+                        @Header(KafkaHeaders.OFFSET) long offset) {
+                log.info("Received solar flare id={} class={} partition={} offset={}",
+                                event.flrId(), event.classType(), partition, offset);
 
-        if (solarFlareRepository.existsByFlrId(event.flrId())) {
-            log.debug("Solar flare id={} already exists, skipping", event.flrId());
-            return;
+                if (solarFlareRepository.existsByFlrId(event.flrId())) {
+                        log.debug("Solar flare id={} already exists, skipping", event.flrId());
+                        return;
+                }
+
+                RiskEvent risk = riskClassifier.classifySolarFlare(event);
+
+                SolarFlare flare = SolarFlare.builder()
+                                .flrId(event.flrId())
+                                .classType(event.classType())
+                                .beginTime(event.beginTime())
+                                .peakTime(event.peakTime())
+                                .endTime(event.endTime())
+                                .sourceLocation(event.sourceLocation())
+                                .riskLevel(risk.riskLevel())
+                                .riskScore(risk.score())
+                                .riskReason(risk.reason())
+                                .build();
+
+                solarFlareRepository.save(flare);
+
+                RiskAssessment assessment = RiskAssessment.builder()
+                                .sourceEventId(event.flrId())
+                                .eventType("SOLAR_FLARE")
+                                .riskLevel(risk.riskLevel())
+                                .riskScore(risk.score())
+                                .reason(risk.reason())
+                                .build();
+
+                riskAssessmentRepository.save(assessment);
+
+                producer.publishRisk(risk);
+
+                log.info("Saved solar flare id={} riskLevel={}", event.flrId(), risk.riskLevel());
         }
-
-        RiskEvent risk = riskClassifier.classifySolarFlare(event);
-
-        SolarFlare flare = SolarFlare.builder()
-                .flrId(event.flrId())
-                .classType(event.classType())
-                .beginTime(event.beginTime())
-                .peakTime(event.peakTime())
-                .endTime(event.endTime())
-                .sourceLocation(event.sourceLocation())
-                .riskLevel(risk.riskLevel())
-                .riskScore(risk.score())
-                .riskReason(risk.reason())
-                .build();
-
-        solarFlareRepository.save(flare);
-
-        RiskAssessment assessment = RiskAssessment.builder()
-                .sourceEventId(event.flrId())
-                .eventType("SOLAR_FLARE")
-                .riskLevel(risk.riskLevel())
-                .riskScore(risk.score())
-                .reason(risk.reason())
-                .build();
-
-        riskAssessmentRepository.save(assessment);
-
-        producer.publishRisk(risk);
-
-        log.info("Saved solar flare id={} riskLevel={}", event.flrId(), risk.riskLevel());
-    }
 }

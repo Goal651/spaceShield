@@ -22,60 +22,55 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class FireballConsumer {
 
-    private final RiskClassifier           riskClassifier;
-    private final SpaceEventProducer       producer;
-    private final FireballRepository       fireballRepository;
-    private final RiskAssessmentRepository riskAssessmentRepository;
+        private final RiskClassifier riskClassifier;
+        private final SpaceEventProducer producer;
+        private final FireballRepository fireballRepository;
+        private final RiskAssessmentRepository riskAssessmentRepository;
 
-    @KafkaListener(
-            topics           = KafkaTopics.FIREBALLS,
-            groupId          = "spaceshield-group",
-            containerFactory = "kafkaListenerContainerFactory"
-    )
-    public void consume(
-            @Payload FireballEvent event,
-            @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
-            @Header(KafkaHeaders.OFFSET) long offset
-    ) {
-        log.info("Received fireball date={} energy={}kt partition={} offset={}",
-                event.date(), event.impactEnergyKt(), partition, offset);
+        @KafkaListener(topics = KafkaTopics.FIREBALLS, groupId = "space-shield-group", containerFactory = "fireballFactory")
+        public void consume(
+                        @Payload FireballEvent event,
+                        @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
+                        @Header(KafkaHeaders.OFFSET) long offset) {
+                log.info("Received fireball date={} energy={}kt partition={} offset={}",
+                                event.date(), event.impactEnergyKt(), partition, offset);
 
-        // eventDate is the natural unique key for fireballs
-        if (fireballRepository.existsByEventDate(event.date())) {
-            log.debug("Fireball date={} already exists, skipping", event.date());
-            return;
+                // eventDate is the natural unique key for fireballs
+                if (fireballRepository.existsByEventDate(event.date())) {
+                        log.debug("Fireball date={} already exists, skipping", event.date());
+                        return;
+                }
+
+                RiskEvent risk = riskClassifier.classifyFireball(event);
+
+                Fireball fireball = Fireball.builder()
+                                .eventDate(event.date())
+                                .lat(event.lat())
+                                .latDir(event.latDir())
+                                .lon(event.lon())
+                                .lonDir(event.lonDir())
+                                .altitudeKm(event.altKm())
+                                .energyJoules(event.energyJoules())
+                                .impactEnergyKt(event.impactEnergyKt())
+                                .riskLevel(risk.riskLevel())
+                                .riskScore(risk.score())
+                                .riskReason(risk.reason())
+                                .build();
+
+                fireballRepository.save(fireball);
+
+                RiskAssessment assessment = RiskAssessment.builder()
+                                .sourceEventId(event.date())
+                                .eventType("FIREBALL")
+                                .riskLevel(risk.riskLevel())
+                                .riskScore(risk.score())
+                                .reason(risk.reason())
+                                .build();
+
+                riskAssessmentRepository.save(assessment);
+
+                producer.publishRisk(risk);
+
+                log.info("Saved fireball date={} riskLevel={}", event.date(), risk.riskLevel());
         }
-
-        RiskEvent risk = riskClassifier.classifyFireball(event);
-
-        Fireball fireball = Fireball.builder()
-                .eventDate(event.date())
-                .lat(event.lat())
-                .latDir(event.latDir())
-                .lon(event.lon())
-                .lonDir(event.lonDir())
-                .altitudeKm(event.altKm())
-                .energyJoules(event.energyJoules())
-                .impactEnergyKt(event.impactEnergyKt())
-                .riskLevel(risk.riskLevel())
-                .riskScore(risk.score())
-                .riskReason(risk.reason())
-                .build();
-
-        fireballRepository.save(fireball);
-
-        RiskAssessment assessment = RiskAssessment.builder()
-                .sourceEventId(event.date())
-                .eventType("FIREBALL")
-                .riskLevel(risk.riskLevel())
-                .riskScore(risk.score())
-                .reason(risk.reason())
-                .build();
-
-        riskAssessmentRepository.save(assessment);
-
-        producer.publishRisk(risk);
-
-        log.info("Saved fireball date={} riskLevel={}", event.date(), risk.riskLevel());
-    }
 }
