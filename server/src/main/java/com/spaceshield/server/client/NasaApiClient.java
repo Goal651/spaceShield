@@ -6,7 +6,9 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import com.spaceshield.server.client.response.fireball.FireballResponse;
 import com.spaceshield.server.client.response.neo.NeoFeedResponse;
+import com.spaceshield.server.client.response.solar.SolarFlareResponse;
 import com.spaceshield.server.dtos.fireball.FireballDto;
 import com.spaceshield.server.dtos.solar.SolarFlareDto;
 
@@ -32,21 +34,25 @@ public class NasaApiClient {
                 .block();
     }
 
-    public List<SolarFlareDto> getSolarFlares() {
+    public SolarFlareResponse getSolarFlares() {
         return webClient.get()
-                .uri("/space-weather/solar-flares")
+                .uri(uriBuilder -> uriBuilder
+                        .path("/DONKI/FLR")
+                        .queryParam("api_key", nasaProperties.getApiKey())
+                        .build())
                 .retrieve()
-                .bodyToFlux(SolarFlareDto.class)
-                .collectList()
+                .bodyToMono(SolarFlareResponse.class)
                 .block();
     }
 
-    public List<FireballDto> getFireballs() {
+    public FireballResponse getFireballs() {
         return webClient.get()
-                .uri("/space-weather/fireballs")
+                .uri(uriBuilder -> uriBuilder
+                        .path("/fireball.api")
+                        .queryParam("api_key", nasaProperties.getApiKey())
+                        .build())
                 .retrieve()
-                .bodyToFlux(FireballDto.class)
-                .collectList()
+                .bodyToMono(FireballResponse.class)
                 .block();
     }
 }
