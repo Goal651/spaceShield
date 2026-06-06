@@ -1,9 +1,13 @@
 package com.spaceshield.server.kafka.consumer;
 
+import com.spaceshield.server.entity.RiskAssessment;
+import com.spaceshield.server.entity.SolarFlare;
 import com.spaceshield.server.kafka.config.KafkaTopics;
 import com.spaceshield.server.kafka.event.RiskEvent;
 import com.spaceshield.server.kafka.event.SolarFlareEvent;
 import com.spaceshield.server.kafka.producer.SpaceEventProducer;
+import com.spaceshield.server.repository.RiskAssessmentRepository;
+import com.spaceshield.server.repository.SolarFlareRepository;
 import com.spaceshield.server.risk.RiskClassifier;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,22 +22,57 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class SolarConsumer {
 
-    private final RiskClassifier riskClassifier;
-    private final SpaceEventProducer producer;
+    private final RiskClassifier           riskClassifier;
+    private final SpaceEventProducer       producer;
+    private final SolarFlareRepository     solarFlareRepository;
+    private final RiskAssessmentRepository riskAssessmentRepository;
 
-    @KafkaListener(topics = KafkaTopics.SOLAR, groupId = "spaceshield-group", containerFactory = "kafkaListenerContainerFactory")
+    @KafkaListener(
+            topics           = KafkaTopics.SOLAR,
+            groupId          = "spaceshield-group",
+            containerFactory = "kafkaListenerContainerFactory"
+    )
     public void consume(
             @Payload SolarFlareEvent event,
             @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
-            @Header(KafkaHeaders.OFFSET) long offset) {
+            @Header(KafkaHeaders.OFFSET) long offset
+    ) {
         log.info("Received solar flare id={} class={} partition={} offset={}",
                 event.flrId(), event.classType(), partition, offset);
 
+        if (solarFlareRepository.existsByFlrId(event.flrId())) {
+            log.debug("Solar flare id={} already exists, skipping", event.flrId());
+            return;
+        }
+
         RiskEvent risk = riskClassifier.classifySolarFlare(event);
-        log.info("Solar flare {} classified as {} (score={})", event.flrId(), risk.riskLevel(), risk.score());
+
+        SolarFlare flare = SolarFlare.builder()
+                .flrId(event.flrId())
+                .classType(event.classType())
+                .beginTime(event.beginTime())
+                .peakTime(event.peakTime())
+                .endTime(event.endTime())
+                .sourceLocation(event.sourceLocation())
+                .riskLevel(risk.riskLevel())
+                .riskScore(risk.score())
+                .riskReason(risk.reason())
+                .build();
+
+        solarFlareRepository.save(flare);
+
+        RiskAssessment assessment = RiskAssessment.builder()
+                .sourceEventId(event.flrId())
+                .eventType("SOLAR_FLARE")
+                .riskLevel(risk.riskLevel())
+                .riskScore(risk.score())
+                .reason(risk.reason())
+                .build();
+
+        riskAssessmentRepository.save(assessment);
 
         producer.publishRisk(risk);
 
-        // solarFlareRepository.save(SolarFlareDocument.from(event, risk));
+        log.info("Saved solar flare id={} riskLevel={}", event.flrId(), risk.riskLevel());
     }
 }

@@ -1,9 +1,13 @@
 package com.spaceshield.server.kafka.consumer;
 
+import com.spaceshield.server.entity.Asteroid;
+import com.spaceshield.server.entity.RiskAssessment;
 import com.spaceshield.server.kafka.config.KafkaTopics;
 import com.spaceshield.server.kafka.event.AsteroidEvent;
 import com.spaceshield.server.kafka.event.RiskEvent;
 import com.spaceshield.server.kafka.producer.SpaceEventProducer;
+import com.spaceshield.server.repository.AsteroidRepository;
+import com.spaceshield.server.repository.RiskAssessmentRepository;
 import com.spaceshield.server.risk.RiskClassifier;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,23 +24,58 @@ public class AsteroidConsumer {
 
     private final RiskClassifier riskClassifier;
     private final SpaceEventProducer producer;
+    private final AsteroidRepository asteroidRepository;
+    private final RiskAssessmentRepository riskAssessmentRepository;
 
     @KafkaListener(topics = KafkaTopics.ASTEROIDS, groupId = "spaceshield-group", containerFactory = "kafkaListenerContainerFactory")
     public void consume(
             @Payload AsteroidEvent event,
             @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
             @Header(KafkaHeaders.OFFSET) long offset) {
-        log.info("Received asteroid event id={} name={} partition={} offset={}",
+        log.info("Received asteroid id={} name={} partition={} offset={}",
                 event.id(), event.name(), partition, offset);
 
-        // 1. Classify risk
-        RiskEvent risk = riskClassifier.classifyAsteroid(event);
-        log.info("Asteroid {} classified as {} (score={})", event.id(), risk.riskLevel(), risk.score());
+        // Skip duplicates — NASA re-sends the same asteroid across overlapping date
+        // windows
+        if (asteroidRepository.existsByNasaId(event.id())) {
+            log.debug("Asteroid id={} already exists, skipping", event.id());
+            return;
+        }
 
-        // 2. Publish risk event — RiskConsumer / dashboard picks this up
+        // 1. Classify
+        RiskEvent risk = riskClassifier.classifyAsteroid(event);
+
+        // 2. Save asteroid with risk embedded
+        Asteroid asteroid = Asteroid.builder()
+                .nasaId(event.id())
+                .name(event.name())
+                .diameterMinKm(event.diameterMinKm())
+                .diameterMaxKm(event.diameterMaxKm())
+                .velocityKmPerSec(event.velocityKmPerSec())
+                .missDistanceKm(event.missDistanceKm())
+                .closeApproachDate(event.closeApproachDate())
+                .isPotentiallyHazardous(event.isPotentiallyHazardous())
+                .riskLevel(risk.riskLevel())
+                .riskScore(risk.score())
+                .riskReason(risk.reason())
+                .build();
+
+        asteroidRepository.save(asteroid);
+
+        // 3. Save to risk audit table
+        RiskAssessment assessment = RiskAssessment.builder()
+                .sourceEventId(event.id())
+                .eventType("ASTEROID")
+                .riskLevel(risk.riskLevel())
+                .riskScore(risk.score())
+                .reason(risk.reason())
+                .build();
+
+        riskAssessmentRepository.save(assessment);
+
+        // 4. Publish risk event downstream (dashboard / alerts)
         producer.publishRisk(risk);
 
-        // 3. Persist to MongoDB goes here (inject your repository and save)
-        // asteroidRepository.save(AsteroidDocument.from(event, risk));
+        log.info("Saved asteroid id={} riskLevel={}", event.id(), risk.riskLevel());
     }
 }

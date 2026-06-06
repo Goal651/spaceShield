@@ -1,31 +1,52 @@
 package com.spaceshield.server.entity;
 
-import java.time.LocalDateTime;
-import java.util.UUID;
+import jakarta.persistence.*;
+import lombok.*;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
-import lombok.Data;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "solar_flares")
-@Data
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class SolarFlare {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID flareId;
+    @Column(name = "flr_id", nullable = false, unique = true)
+    private String flrId;
 
-    private String classType;
+    @Column(name = "class_type", length = 10)
+    private String classType;           // A, B, C, M, X
 
-    private LocalDateTime beginTime;
+    @Column(name = "begin_time")
+    private String beginTime;
 
-    private LocalDateTime peakTime;
+    @Column(name = "peak_time")
+    private String peakTime;
 
-    private LocalDateTime endTime;
+    @Column(name = "end_time")
+    private String endTime;             // nullable — may still be ongoing
 
-    private String sourceLocation;
+    @Column(name = "source_location", length = 20)
+    private String sourceLocation;      // e.g. "N25W45"
+
+    @Column(name = "risk_level", length = 20)
+    private String riskLevel;
+
+    @Column(name = "risk_score")
+    private Integer riskScore;
+
+    @Column(name = "risk_reason", columnDefinition = "TEXT")
+    private String riskReason;
+
+    @Column(name = "ingested_at", nullable = false)
+    private LocalDateTime ingestedAt;
+
+    @PrePersist
+    public void prePersist() {
+        if (ingestedAt == null) ingestedAt = LocalDateTime.now();
+    }
 }

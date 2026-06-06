@@ -16,15 +16,15 @@ import java.time.format.DateTimeFormatter;
 public class SpaceIngestionScheduler {
 
     private final NasaApiClient client;
-    private final SpaceEventProducer  producer;
-    private final IngestionMapper     mapper;
+    private final SpaceEventProducer producer;
+    private final IngestionMapper mapper;
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     // ── Asteroids: pull once per day (NASA NEO feed is daily) ───────────────
-    @Scheduled(cron = "0 0 6 * * *")   // 06:00 every day
+    @Scheduled(cron = "0 0 6 * * *") // 06:00 every day
     public void ingestAsteroids() {
-        String today    = LocalDate.now().format(DATE_FMT);
+        String today = LocalDate.now().format(DATE_FMT);
         String tomorrow = LocalDate.now().plusDays(1).format(DATE_FMT);
 
         log.info("Ingesting NEO feed {} → {}", today, tomorrow);
@@ -40,7 +40,7 @@ public class SpaceIngestionScheduler {
     @Scheduled(fixedRate = 1_800_000)
     public void ingestSolarFlares() {
         String startDate = LocalDate.now().minusDays(1).format(DATE_FMT);
-        String endDate   = LocalDate.now().format(DATE_FMT);
+        String endDate = LocalDate.now().format(DATE_FMT);
 
         log.info("Ingesting DONKI solar flares {} → {}", startDate, endDate);
 

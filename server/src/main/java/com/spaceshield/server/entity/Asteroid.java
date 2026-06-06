@@ -1,35 +1,58 @@
 package com.spaceshield.server.entity;
 
-import java.time.LocalDateTime;
-import java.util.UUID;
+import jakarta.persistence.*;
+import lombok.*;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
-import lombok.Data;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "asteroids")
-@Data
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Asteroid {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
+    @Column(name = "nasa_id", nullable = false, unique = true)
+    private String nasaId;
 
+    @Column(nullable = false)
     private String name;
 
-    private Double diameterMinMeters;
+    @Column(name = "diameter_min_km")
+    private Double diameterMinKm;
 
-    private Double diameterMaxMeters;
+    @Column(name = "diameter_max_km")
+    private Double diameterMaxKm;
 
-    private Double speedKmPerHour;
+    @Column(name = "velocity_km_per_sec")
+    private Double velocityKmPerSec;
 
+    @Column(name = "miss_distance_km")
     private Double missDistanceKm;
 
-    private Boolean potentiallyHazardous;
+    @Column(name = "close_approach_date")
+    private String closeApproachDate;
 
-    private LocalDateTime closeApproachDate;
+    @Column(name = "is_potentially_hazardous")
+    private boolean isPotentiallyHazardous;
+
+    @Column(name = "risk_level", length = 20)
+    private String riskLevel;           // SAFE | WATCH | CRITICAL
+
+    @Column(name = "risk_score")
+    private Integer riskScore;
+
+    @Column(name = "risk_reason", columnDefinition = "TEXT")
+    private String riskReason;
+
+    @Column(name = "ingested_at", nullable = false)
+    private LocalDateTime ingestedAt;
+
+    @PrePersist
+    public void prePersist() {
+        if (ingestedAt == null) ingestedAt = LocalDateTime.now();
+    }
 }
