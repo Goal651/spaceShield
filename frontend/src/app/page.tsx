@@ -3,55 +3,81 @@
 import { useEffect, useState } from 'react';
 import { AsteroidDTO, FireballDTO, SolarFlareDTO } from '@/types';
 import { fetchAsteroids, fetchFireballs, fetchSolarFlares } from '@/lib/api';
+import { 
+  Shield, 
+  Orbit, 
+  Flame, 
+  Sun, 
+  LayoutDashboard, 
+  AlertTriangle, 
+  Info, 
+  Activity,
+  Clock,
+  ChevronRight,
+  Menu,
+  X
+} from 'lucide-react';
+
+type View = 'asteroids' | 'fireballs' | 'solar-flares';
 
 function RiskBadge({ level }: { level: string }) {
-  const baseClasses = 'px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider';
+  const baseClasses = 'px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest border';
   switch (level) {
-    case 'CRITICAL': return <span className={`${baseClasses} risk-critical pulse-critical`}>{level}</span>;
-    case 'WATCH':    return <span className={`${baseClasses} risk-watch`}>{level}</span>;
-    case 'SAFE':     return <span className={`${baseClasses} risk-safe`}>{level}</span>;
-    default:         return <span className={`${baseClasses} bg-gray-700 text-gray-300`}>{level}</span>;
+    case 'CRITICAL': 
+      return <span className={`${baseClasses} border-red-500/50 bg-red-500/10 text-red-500 pulse-critical`}>{level}</span>;
+    case 'WATCH':    
+      return <span className={`${baseClasses} border-amber-500/50 bg-amber-500/10 text-amber-500`}>{level}</span>;
+    case 'SAFE':     
+      return <span className={`${baseClasses} border-emerald-500/50 bg-emerald-500/10 text-emerald-500`}>{level}</span>;
+    default:         
+      return <span className={`${baseClasses} border-slate-500/50 bg-slate-500/10 text-slate-400`}>{level}</span>;
   }
 }
 
 function RiskMeter({ score }: { score: number }) {
   const percentage = Math.min(Math.max(score, 0), 10) * 10;
-  const color = score >= 7 ? 'bg-red-500' : score >= 4 ? 'bg-yellow-500' : 'bg-green-500';
+  const color = score >= 7 ? 'bg-red-500' : score >= 4 ? 'bg-amber-500' : 'bg-emerald-500';
   return (
-    <div className="w-full bg-gray-700 rounded-full h-1.5 overflow-hidden">
-      <div className={`h-full ${color} transition-all duration-500`} style={{ width: `${percentage}%` }} />
+    <div className="w-full bg-slate-800 rounded-full h-1 overflow-hidden">
+      <div className={`h-full ${color} transition-all duration-700 ease-out`} style={{ width: `${percentage}%` }} />
     </div>
   );
 }
 
-function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: number; color: string }) {
+function SidebarItem({ 
+  active, 
+  onClick, 
+  icon: Icon, 
+  label, 
+  count 
+}: { 
+  active: boolean; 
+  onClick: () => void; 
+  icon: any; 
+  label: string; 
+  count?: number;
+}) {
   return (
-    <div className={`bg-[#1a2234] rounded-lg p-4 glow-border card-hover`}>
+    <button 
+      onClick={onClick}
+      className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-all duration-200 group ${
+        active 
+          ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' 
+          : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
+      }`}
+    >
       <div className="flex items-center gap-3">
-        <div className={`p-2 rounded-lg ${color}`}>{icon}</div>
-        <div>
-          <div className="text-gray-400 text-xs uppercase tracking-wider">{label}</div>
-          <div className="text-2xl font-bold text-white">{value}</div>
-        </div>
+        <Icon size={18} className={active ? 'text-cyan-400' : 'text-slate-500 group-hover:text-slate-300'} />
+        <span className="text-sm font-medium">{label}</span>
       </div>
-    </div>
-  );
-}
-
-function SectionCard({ title, icon, count, children }: { title: string; icon: React.ReactNode; count: number; children: React.ReactNode }) {
-  return (
-    <div className="bg-[#1a2234] rounded-xl glow-border card-hover flex flex-col">
-      <div className="p-4 border-b border-gray-700/50 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          {icon}
-          <h2 className="text-lg font-semibold text-white">{title}</h2>
-        </div>
-        <span className="bg-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded text-sm font-mono">{count}</span>
-      </div>
-      <div className="p-4 overflow-y-auto flex-1 max-h-80 space-y-3">
-        {children}
-      </div>
-    </div>
+      {count !== undefined && (
+        <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+          active ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-800 text-slate-500'
+        }`}>
+          {count}
+        </span>
+      )}
+    </button>
   );
 }
 
@@ -62,6 +88,8 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<string>('');
+  const [activeView, setActiveView] = useState<View>('asteroids');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -74,7 +102,7 @@ export default function Home() {
         setAsteroids(asteroidsData);
         setFireballs(fireballsData);
         setSolarFlares(solarFlaresData);
-        setLastUpdate(new Date().toLocaleTimeString());
+        setLastUpdate(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
       } catch (err) {
         setError('Failed to connect to Space Shield API');
         console.error(err);
@@ -83,29 +111,24 @@ export default function Home() {
       }
     }
     loadData();
+    const interval = setInterval(loadData, 60000);
+    return () => clearInterval(interval);
   }, []);
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#0a0e17]">
-        <div className="relative">
-          <div className="w-16 h-16 border-4 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin" />
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#0a0e17] grid-bg">
+        <div className="relative mb-8">
+          <div className="w-20 h-20 border-2 border-cyan-500/10 border-t-cyan-500 rounded-full animate-spin" />
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-8 h-8 bg-cyan-500/30 rounded-full animate-ping" />
+            <Shield className="text-cyan-500 animate-pulse" size={32} />
           </div>
         </div>
-        <p className="mt-6 text-cyan-400 font-mono tracking-wider">INITIALIZING SCANNERS...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0a0e17] p-4">
-        <div className="bg-[#1a2234] rounded-xl glow-border p-6 text-center max-w-md">
-          <div className="text-red-500 text-4xl mb-4">⚠</div>
-          <h2 className="text-xl font-bold text-white mb-2">Connection Error</h2>
-          <p className="text-gray-400">{error}</p>
+        <div className="space-y-2 text-center">
+          <p className="text-cyan-500 font-mono text-sm tracking-[0.3em] uppercase">Initializing Scanners</p>
+          <div className="w-48 h-1 bg-slate-800 rounded-full overflow-hidden mx-auto">
+            <div className="h-full bg-cyan-500 animate-[loading_2s_ease-in-out_infinite]" style={{ width: '40%' }} />
+          </div>
         </div>
       </div>
     );
@@ -116,196 +139,256 @@ export default function Home() {
                       solarFlares.some(s => s.riskLevel === 'CRITICAL');
 
   return (
-    <div className="min-h-screen bg-[#0a0e17]">
-      {/* Header */}
-      <header className="border-b border-cyan-500/20 bg-[#0d1424]/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-cyan-600 rounded-lg flex items-center justify-center">
-                  <span className="text-xl">🛡</span>
-                </div>
-                {hasCritical && (
-                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-ping" />
-                )}
-                {hasCritical && (
-                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full" />
-                )}
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-white tracking-wide">SPACE SHIELD</h1>
-                <p className="text-xs text-gray-400 font-mono">REAL-TIME THREAT MONITOR</p>
+    <div className="min-h-screen bg-[#0a0e17] text-slate-200 flex overflow-hidden">
+      {/* Sidebar - Desktop */}
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#0d1424] border-r border-slate-800/50 transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="flex flex-col h-full">
+          <div className="p-6 flex items-center gap-3">
+            <div className="w-10 h-10 bg-cyan-500/10 border border-cyan-500/20 rounded-xl flex items-center justify-center">
+              <Shield className="text-cyan-400" size={24} />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold text-white tracking-tight">SPACE SHIELD</h1>
+              <div className="flex items-center gap-1.5">
+                <div className={`w-1.5 h-1.5 rounded-full ${hasCritical ? 'bg-red-500 animate-pulse' : 'bg-emerald-500'}`} />
+                <span className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">System Active</span>
               </div>
             </div>
-            <div className="flex items-center gap-4 text-sm">
-              <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${hasCritical ? 'bg-red-500' : 'bg-green-500'}`} />
-                <span className="text-gray-400">{hasCritical ? 'ALERT ACTIVE' : 'ALL CLEAR'}</span>
+          </div>
+
+          <nav className="flex-1 px-4 py-4 space-y-2">
+            <div className="text-[10px] font-bold text-slate-600 uppercase tracking-[0.2em] px-4 mb-4">Monitoring</div>
+            <SidebarItem 
+              active={activeView === 'asteroids'} 
+              onClick={() => { setActiveView('asteroids'); setSidebarOpen(false); }}
+              icon={Orbit} 
+              label="Asteroids" 
+              count={asteroids.length}
+            />
+            <SidebarItem 
+              active={activeView === 'fireballs'} 
+              onClick={() => { setActiveView('fireballs'); setSidebarOpen(false); }}
+              icon={Flame} 
+              label="Fireballs" 
+              count={fireballs.length}
+            />
+            <SidebarItem 
+              active={activeView === 'solar-flares'} 
+              onClick={() => { setActiveView('solar-flares'); setSidebarOpen(false); }}
+              icon={Sun} 
+              label="Solar Flares" 
+              count={solarFlares.length}
+            />
+          </nav>
+
+          <div className="p-4 border-t border-slate-800/50">
+            <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800/50">
+              <div className="flex items-center gap-3 mb-2">
+                <Activity size={16} className="text-cyan-400" />
+                <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Live Status</span>
               </div>
-              <div className="text-gray-500 font-mono text-xs">
-                Updated: {lastUpdate}
+              <div className="space-y-2">
+                <div className="flex justify-between text-[10px]">
+                  <span className="text-slate-500">Last Scan</span>
+                  <span className="text-slate-300 font-mono">{lastUpdate}</span>
+                </div>
+                <div className="flex justify-between text-[10px]">
+                  <span className="text-slate-500">Threat Level</span>
+                  <span className={hasCritical ? 'text-red-400 font-bold' : 'text-emerald-400'}>
+                    {hasCritical ? 'ELEVATED' : 'NOMINAL'}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </header>
+      </aside>
 
-      <main className="max-w-7xl mx-auto px-4 py-6">
-        {/* Stats Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-          <StatCard
-            icon={<span className="text-xl">☄️</span>}
-            label="Near-Earth Asteroids"
-            value={asteroids.length}
-            color="bg-orange-500/20 text-orange-400"
-          />
-          <StatCard
-            icon={<span className="text-xl">🔥</span>}
-            label="Fireball Events"
-            value={fireballs.length}
-            color="bg-red-500/20 text-red-400"
-          />
-          <StatCard
-            icon={<span className="text-xl">☀️</span>}
-            label="Solar Flares"
-            value={solarFlares.length}
-            color="bg-yellow-500/20 text-yellow-400"
-          />
-        </div>
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative grid-bg">
+        {/* Mobile Header */}
+        <header className="lg:hidden h-16 flex items-center justify-between px-6 border-b border-slate-800/50 bg-[#0a0e17]/80 backdrop-blur-md sticky top-0 z-40">
+          <div className="flex items-center gap-3">
+            <Shield className="text-cyan-400" size={20} />
+            <span className="font-bold text-sm tracking-wider">SPACE SHIELD</span>
+          </div>
+          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 text-slate-400 hover:text-white transition-colors">
+            {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
+        </header>
 
-        {/* Main Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Asteroids */}
-          <SectionCard
-            title="Asteroids"
-            icon={<span className="text-xl">☄️</span>}
-            count={asteroids.length}
-          >
-            {asteroids.length === 0 ? (
-              <div className="text-gray-500 text-center py-8">No asteroid data available</div>
-            ) : (
-              asteroids.map((asteroid) => (
-                <div key={asteroid.nasaId} className="bg-[#111827] rounded-lg p-3 border border-gray-700/50 hover:border-cyan-500/30 transition-colors">
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <div className="font-medium text-white text-sm truncate">{asteroid.name}</div>
-                    <RiskBadge level={asteroid.riskLevel} />
-                  </div>
-                  <div className="space-y-1 text-xs text-gray-400">
-                    <div className="flex justify-between">
-                      <span>NASA ID:</span>
-                      <span className="font-mono text-gray-300">{asteroid.nasaId}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Diameter:</span>
-                      <span className="text-gray-300">{asteroid.diameterMinKm?.toFixed(2)} – {asteroid.diameterMaxKm?.toFixed(2)} km</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Miss Distance:</span>
-                      <span className="text-gray-300">{Number(asteroid.missDistanceKm).toLocaleString()} km</span>
-                    </div>
-                    <div className="mt-2">
-                      <div className="flex justify-between text-xs mb-1">
-                        <span>Risk Score</span>
-                        <span className="font-mono">{asteroid.riskScore}/10</span>
-                      </div>
-                      <RiskMeter score={asteroid.riskScore} />
-                    </div>
-                  </div>
+        {/* Content Area */}
+        <main className="flex-1 overflow-y-auto p-6 lg:p-10">
+          <div className="max-w-5xl mx-auto space-y-8">
+            {/* Page Header */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+              <div>
+                <h2 className="text-3xl font-bold text-white tracking-tight capitalize flex items-center gap-3">
+                  {activeView.replace('-', ' ')}
+                  <div className="h-px w-12 bg-cyan-500/30 ml-2 hidden md:block"></div>
+                </h2>
+                <p className="text-slate-400 text-sm mt-1 max-w-md">
+                  {activeView === 'asteroids' && "Real-time tracking of Near-Earth Objects (NEOs) detected within our planetary neighborhood."}
+                  {activeView === 'fireballs' && "Monitoring atmospheric entry events and impact energy data from fireball sightings worldwide."}
+                  {activeView === 'solar-flares' && "Space weather tracking of solar activity and its potential impact on planetary communications."}
+                </p>
+              </div>
+              <div className="flex items-center gap-3 bg-slate-900/50 px-4 py-2 rounded-lg border border-slate-800/50">
+                <Clock size={14} className="text-slate-500" />
+                <span className="text-xs font-mono text-slate-400 uppercase tracking-widest">Next Refresh in 60s</span>
+              </div>
+            </div>
+
+            {/* View Content */}
+            <div className="fade-in">
+              {activeView === 'asteroids' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {asteroids.length === 0 ? (
+                    <EmptyState message="No asteroids detected in recent scans" />
+                  ) : (
+                    asteroids.map((asteroid) => (
+                      <DataCard key={asteroid.nasaId}>
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-slate-800/50 border border-slate-700/50 flex items-center justify-center">
+                              <Orbit size={20} className="text-cyan-400" />
+                            </div>
+                            <div>
+                              <div className="text-sm font-bold text-white">{asteroid.name}</div>
+                              <div className="text-[10px] font-mono text-slate-500">ID: {asteroid.nasaId}</div>
+                            </div>
+                          </div>
+                          <RiskBadge level={asteroid.riskLevel} />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                          <DataPoint label="Diameter" value={`${asteroid.diameterMinKm?.toFixed(2)} - ${asteroid.diameterMaxKm?.toFixed(2)} km`} />
+                          <DataPoint label="Miss Distance" value={`${Number(asteroid.missDistanceKm).toLocaleString()} km`} />
+                        </div>
+                        <div className="space-y-1.5 pt-4 border-t border-slate-800/50">
+                          <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider">
+                            <span className="text-slate-500">Risk Assessment</span>
+                            <span className="text-slate-300 font-mono">{asteroid.riskScore}/10</span>
+                          </div>
+                          <RiskMeter score={asteroid.riskScore} />
+                        </div>
+                      </DataCard>
+                    ))
+                  )}
                 </div>
-              ))
-            )}
-          </SectionCard>
+              )}
 
-          {/* Fireballs */}
-          <SectionCard
-            title="Fireballs"
-            icon={<span className="text-xl">🔥</span>}
-            count={fireballs.length}
-          >
-            {fireballs.length === 0 ? (
-              <div className="text-gray-500 text-center py-8">No fireball data available</div>
-            ) : (
-              fireballs.map((fireball) => (
-                <div key={fireball.id} className="bg-[#111827] rounded-lg p-3 border border-gray-700/50 hover:border-cyan-500/30 transition-colors">
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <div className="font-medium text-white text-sm">Event #{fireball.id}</div>
-                    <RiskBadge level={fireball.riskLevel} />
-                  </div>
-                  <div className="space-y-1 text-xs text-gray-400">
-                    <div className="flex justify-between">
-                      <span>Date:</span>
-                      <span className="text-gray-300">{fireball.eventDate}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Energy:</span>
-                      <span className="text-gray-300 font-mono">{fireball.energyJoules?.toFixed(2)} ×10¹⁰ J</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Impact:</span>
-                      <span className="text-gray-300">{fireball.impactEnergyKt?.toFixed(2)} kt</span>
-                    </div>
-                    <div className="mt-2">
-                      <div className="flex justify-between text-xs mb-1">
-                        <span>Risk Score</span>
-                        <span className="font-mono">{fireball.riskScore}/10</span>
-                      </div>
-                      <RiskMeter score={fireball.riskScore} />
-                    </div>
-                  </div>
+              {activeView === 'fireballs' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {fireballs.length === 0 ? (
+                    <EmptyState message="No fireball events recorded" />
+                  ) : (
+                    fireballs.map((fireball) => (
+                      <DataCard key={fireball.id}>
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-slate-800/50 border border-slate-700/50 flex items-center justify-center">
+                              <Flame size={20} className="text-amber-400" />
+                            </div>
+                            <div>
+                              <div className="text-sm font-bold text-white">Event #{fireball.id}</div>
+                              <div className="text-[10px] font-mono text-slate-500">{fireball.eventDate}</div>
+                            </div>
+                          </div>
+                          <RiskBadge level={fireball.riskLevel} />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                          <DataPoint label="Total Energy" value={`${fireball.energyJoules?.toFixed(2)} ×10¹⁰ J`} />
+                          <DataPoint label="Impact Energy" value={`${fireball.impactEnergyKt?.toFixed(2)} kt`} />
+                        </div>
+                        <div className="space-y-1.5 pt-4 border-t border-slate-800/50">
+                          <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider">
+                            <span className="text-slate-500">Risk Assessment</span>
+                            <span className="text-slate-300 font-mono">{fireball.riskScore}/10</span>
+                          </div>
+                          <RiskMeter score={fireball.riskScore} />
+                        </div>
+                      </DataCard>
+                    ))
+                  )}
                 </div>
-              ))
-            )}
-          </SectionCard>
+              )}
 
-          {/* Solar Flares */}
-          <SectionCard
-            title="Solar Flares"
-            icon={<span className="text-xl">☀️</span>}
-            count={solarFlares.length}
-          >
-            {solarFlares.length === 0 ? (
-              <div className="text-gray-500 text-center py-8">No solar flare data available</div>
-            ) : (
-              solarFlares.map((flare) => (
-                <div key={flare.flrId} className="bg-[#111827] rounded-lg p-3 border border-gray-700/50 hover:border-cyan-500/30 transition-colors">
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <div className="font-medium text-white text-sm">{flare.classType}</div>
-                    <RiskBadge level={flare.riskLevel} />
-                  </div>
-                  <div className="space-y-1 text-xs text-gray-400">
-                    <div className="flex justify-between">
-                      <span>Peak:</span>
-                      <span className="text-gray-300">{flare.peakTime}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Location:</span>
-                      <span className="text-gray-300">{flare.sourceLocation || 'N/A'}</span>
-                    </div>
-                    <div className="mt-2">
-                      <div className="flex justify-between text-xs mb-1">
-                        <span>Risk Score</span>
-                        <span className="font-mono">{flare.riskScore}/10</span>
-                      </div>
-                      <RiskMeter score={flare.riskScore} />
-                    </div>
-                    {flare.riskReason && (
-                      <div className="mt-2 text-gray-500 italic">{flare.riskReason}</div>
-                    )}
-                  </div>
+              {activeView === 'solar-flares' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {solarFlares.length === 0 ? (
+                    <EmptyState message="No solar activity detected" />
+                  ) : (
+                    solarFlares.map((flare) => (
+                      <DataCard key={flare.flrId}>
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-slate-800/50 border border-slate-700/50 flex items-center justify-center">
+                              <Sun size={20} className="text-yellow-400" />
+                            </div>
+                            <div>
+                              <div className="text-sm font-bold text-white">Class {flare.classType}</div>
+                              <div className="text-[10px] font-mono text-slate-500">{flare.flrId}</div>
+                            </div>
+                          </div>
+                          <RiskBadge level={flare.riskLevel} />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                          <DataPoint label="Peak Time" value={flare.peakTime.split('T')[1]?.replace('Z', '') || flare.peakTime} />
+                          <DataPoint label="Location" value={flare.sourceLocation || 'Unknown'} />
+                        </div>
+                        <div className="space-y-1.5 pt-4 border-t border-slate-800/50">
+                          <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider">
+                            <span className="text-slate-500">Intensity Score</span>
+                            <span className="text-slate-300 font-mono">{flare.riskScore}/10</span>
+                          </div>
+                          <RiskMeter score={flare.riskScore} />
+                        </div>
+                        {flare.riskReason && (
+                          <div className="mt-3 text-[10px] text-slate-500 italic flex items-start gap-2">
+                            <Info size={12} className="mt-0.5 shrink-0" />
+                            {flare.riskReason}
+                          </div>
+                        )}
+                      </DataCard>
+                    ))
+                  )}
                 </div>
-              ))
-            )}
-          </SectionCard>
-        </div>
-      </main>
+              )}
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+}
 
-      {/* Footer */}
-      <footer className="border-t border-gray-800 mt-auto py-4">
-        <div className="max-w-7xl mx-auto px-4 text-center text-xs text-gray-500">
-          SPACE SHIELD MONITORING SYSTEM • PROTECTING EARTH FROM COSMIC THREATS
-        </div>
-      </footer>
+function DataCard({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="bg-[#1a2234]/40 border border-slate-800/50 rounded-2xl p-5 hover:border-cyan-500/30 transition-all duration-300 group relative overflow-hidden glass">
+      <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
+        <ChevronRight size={14} className="text-cyan-500" />
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function DataPoint({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">{label}</div>
+      <div className="text-xs font-semibold text-slate-300">{value}</div>
+    </div>
+  );
+}
+
+function EmptyState({ message }: { message: string }) {
+  return (
+    <div className="col-span-full py-20 flex flex-col items-center justify-center text-center space-y-4">
+      <div className="w-16 h-16 rounded-full bg-slate-900/50 flex items-center justify-center border border-slate-800">
+        <AlertTriangle size={24} className="text-slate-600" />
+      </div>
+      <p className="text-slate-500 font-medium">{message}</p>
     </div>
   );
 }
