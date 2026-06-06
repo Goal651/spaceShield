@@ -1,5 +1,11 @@
 package com.spaceshield.server.mapper;
 
-public class FireballMapper {
-    
+import org.mapstruct.Mapper;
+
+import com.spaceshield.server.dto.FireballDTO;
+import com.spaceshield.server.entity.Fireball;
+
+@Mapper(componentModel = "spring")
+public interface FireballMapper {
+    FireballDTO toDto(Fireball entity);
 }

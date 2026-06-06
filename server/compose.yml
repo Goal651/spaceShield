@@ -41,6 +41,7 @@ services:
       start_period: 60s
     volumes:
       - ~/.m2:/root/.m2
+      - ./pom.xml:/app/pom.xml
       - ~/.src:/app/src
       - ./target:/app/target
 
