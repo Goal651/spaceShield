@@ -42,7 +42,7 @@ services:
     volumes:
       - ~/.m2:/root/.m2
       - ./pom.xml:/app/pom.xml
-      - ~/.src:/app/src
+      - ./src:/app/src
       - ./target:/app/target
 
   kafka:

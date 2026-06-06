@@ -2,6 +2,7 @@ package com.spaceshield.server.scheduler;
 
 import com.spaceshield.server.client.NasaApiClient;
 import com.spaceshield.server.kafka.producer.SpaceEventProducer;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -20,6 +21,15 @@ public class SpaceIngestionScheduler {
     private final IngestionMapper mapper;
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
+    // ── Run all ingestions once on startup ──────────────────────────────
+    @PostConstruct
+    public void onStartup() {
+        log.info("=== Running initial data ingestion on startup ===");
+        ingestAsteroids();
+        ingestSolarFlares();
+        ingestFireballs();
+    }
 
     // ── Asteroids: pull once per day (NASA NEO feed is daily) ───────────────
     @Scheduled(cron = "0 0 6 * * *") // 06:00 every day
