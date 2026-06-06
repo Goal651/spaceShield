@@ -15,8 +15,8 @@ public class WebClientConfig {
     private final NasaProperties nasaProperties;
 
     @Bean
-    public WebClient webClient(WebClient.Builder builder) {
-        return builder
+    public WebClient webClient() {
+        return WebClient.builder()
                 .baseUrl(nasaProperties.getBaseUrl())
                 .defaultHeader("X-RapidAPI-Key", nasaProperties.getApiKey())
                 .build();
