@@ -35,4 +35,8 @@ public class FireballService {
         return fireballRepository.findById(id).map(fireballMapper::toDto).orElse(null);
     }
 
+    public boolean existsByEventDate(String eventDate) {
+        return fireballRepository.existsByEventDate(eventDate);
+    }
+
 }

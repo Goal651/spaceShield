@@ -18,7 +18,7 @@ public class AsteroidService {
     private final AsteroidRepository asteroidRepository;
     private final AsteroidMapper asteroidMapper;
 
-    public AsteroidDTO saved(Asteroid data) {
+    public AsteroidDTO save(Asteroid data) {
         Asteroid asteroid = asteroidRepository.save(data);
         return asteroidMapper.toDto(asteroid);
     }
@@ -36,6 +36,10 @@ public class AsteroidService {
 
     public AsteroidDTO findByNasaId(String nasaId) {
         return asteroidRepository.findByNasaId(nasaId).map(asteroidMapper::toDto).orElse(null);
+    }
+
+    public boolean existsByNasaId(String nasaId) {
+        return asteroidRepository.existsByNasaId(nasaId);
     }
 
 }

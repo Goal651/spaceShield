@@ -6,9 +6,10 @@ import com.spaceshield.server.kafka.config.KafkaTopics;
 import com.spaceshield.server.kafka.event.FireballEvent;
 import com.spaceshield.server.kafka.event.RiskEvent;
 import com.spaceshield.server.kafka.producer.SpaceEventProducer;
-import com.spaceshield.server.repository.FireballRepository;
-import com.spaceshield.server.repository.RiskAssessmentRepository;
 import com.spaceshield.server.risk.RiskClassifier;
+import com.spaceshield.server.service.FireballService;
+import com.spaceshield.server.service.RiskAssessmentService;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -24,8 +25,8 @@ public class FireballConsumer {
 
         private final RiskClassifier riskClassifier;
         private final SpaceEventProducer producer;
-        private final FireballRepository fireballRepository;
-        private final RiskAssessmentRepository riskAssessmentRepository;
+        private final FireballService fireballService;
+        private final RiskAssessmentService riskAssessmentService;
 
         @KafkaListener(topics = KafkaTopics.FIREBALLS, groupId = "space-shield-group", containerFactory = "fireballFactory")
         public void consume(
@@ -36,7 +37,7 @@ public class FireballConsumer {
                                 event.date(), event.impactEnergyKt(), partition, offset);
 
                 // eventDate is the natural unique key for fireballs
-                if (fireballRepository.existsByEventDate(event.date())) {
+                if (fireballService.existsByEventDate(event.date())) {
                         log.debug("Fireball date={} already exists, skipping", event.date());
                         return;
                 }
@@ -57,7 +58,7 @@ public class FireballConsumer {
                                 .riskReason(risk.reason())
                                 .build();
 
-                fireballRepository.save(fireball);
+                fireballService.save(fireball);
 
                 RiskAssessment assessment = RiskAssessment.builder()
                                 .sourceEventId(event.date())
@@ -67,7 +68,7 @@ public class FireballConsumer {
                                 .reason(risk.reason())
                                 .build();
 
-                riskAssessmentRepository.save(assessment);
+                riskAssessmentService.save(assessment);
 
                 producer.publishRisk(risk);
 

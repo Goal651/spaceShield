@@ -6,9 +6,10 @@ import com.spaceshield.server.kafka.config.KafkaTopics;
 import com.spaceshield.server.kafka.event.AsteroidEvent;
 import com.spaceshield.server.kafka.event.RiskEvent;
 import com.spaceshield.server.kafka.producer.SpaceEventProducer;
-import com.spaceshield.server.repository.AsteroidRepository;
-import com.spaceshield.server.repository.RiskAssessmentRepository;
 import com.spaceshield.server.risk.RiskClassifier;
+import com.spaceshield.server.service.AsteroidService;
+import com.spaceshield.server.service.RiskAssessmentService;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -24,8 +25,8 @@ public class AsteroidConsumer {
 
         private final RiskClassifier riskClassifier;
         private final SpaceEventProducer producer;
-        private final AsteroidRepository asteroidRepository;
-        private final RiskAssessmentRepository riskAssessmentRepository;
+        private final AsteroidService asteroidService;
+        private final RiskAssessmentService riskAssessmentService;
 
         @KafkaListener(topics = KafkaTopics.ASTEROIDS, groupId = "space-shield-group", containerFactory = "asteroidFactory")
         public void consume(
@@ -37,7 +38,7 @@ public class AsteroidConsumer {
 
                 // Skip duplicates — NASA re-sends the same asteroid across overlapping date
                 // windows
-                if (asteroidRepository.existsByNasaId(event.id())) {
+                if (asteroidService.existsByNasaId(event.id())) {
                         log.debug("Asteroid id={} already exists, skipping", event.id());
                         return;
                 }
@@ -60,7 +61,7 @@ public class AsteroidConsumer {
                                 .riskReason(risk.reason())
                                 .build();
 
-                asteroidRepository.save(asteroid);
+                asteroidService.save(asteroid);
 
                 // 3. Save to risk audit table
                 RiskAssessment assessment = RiskAssessment.builder()
@@ -71,7 +72,7 @@ public class AsteroidConsumer {
                                 .reason(risk.reason())
                                 .build();
 
-                riskAssessmentRepository.save(assessment);
+                riskAssessmentService.save(assessment);
 
                 // 4. Publish risk event downstream (dashboard / alerts)
                 producer.publishRisk(risk);

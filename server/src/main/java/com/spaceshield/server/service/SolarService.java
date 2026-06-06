@@ -34,4 +34,7 @@ public class SolarService {
         return solarFlareRepository.findById(id).map(solarFlareMapper::toDto).orElse(null);
     }
 
+    public boolean existsByFlrId(String flrId) {
+        return solarFlareRepository.existsByFlrId(flrId);
+    }
 }

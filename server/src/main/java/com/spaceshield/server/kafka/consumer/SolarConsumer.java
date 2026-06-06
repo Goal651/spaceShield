@@ -6,9 +6,10 @@ import com.spaceshield.server.kafka.config.KafkaTopics;
 import com.spaceshield.server.kafka.event.RiskEvent;
 import com.spaceshield.server.kafka.event.SolarFlareEvent;
 import com.spaceshield.server.kafka.producer.SpaceEventProducer;
-import com.spaceshield.server.repository.RiskAssessmentRepository;
-import com.spaceshield.server.repository.SolarFlareRepository;
 import com.spaceshield.server.risk.RiskClassifier;
+import com.spaceshield.server.service.SolarService;
+import com.spaceshield.server.service.RiskAssessmentService;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -24,8 +25,8 @@ public class SolarConsumer {
 
         private final RiskClassifier riskClassifier;
         private final SpaceEventProducer producer;
-        private final SolarFlareRepository solarFlareRepository;
-        private final RiskAssessmentRepository riskAssessmentRepository;
+        private final SolarService solarService;
+        private final RiskAssessmentService riskAssessmentService;
 
         @KafkaListener(topics = KafkaTopics.SOLAR, groupId = "space-shield-group", containerFactory = "solarFlareFactory")
         public void consume(
@@ -35,7 +36,7 @@ public class SolarConsumer {
                 log.info("Received solar flare id={} class={} partition={} offset={}",
                                 event.flrId(), event.classType(), partition, offset);
 
-                if (solarFlareRepository.existsByFlrId(event.flrId())) {
+                if (solarService.existsByFlrId(event.flrId())) {
                         log.debug("Solar flare id={} already exists, skipping", event.flrId());
                         return;
                 }
@@ -54,7 +55,7 @@ public class SolarConsumer {
                                 .riskReason(risk.reason())
                                 .build();
 
-                solarFlareRepository.save(flare);
+                solarService.save(flare);
 
                 RiskAssessment assessment = RiskAssessment.builder()
                                 .sourceEventId(event.flrId())
@@ -64,7 +65,7 @@ public class SolarConsumer {
                                 .reason(risk.reason())
                                 .build();
 
-                riskAssessmentRepository.save(assessment);
+                riskAssessmentService.save(assessment);
 
                 producer.publishRisk(risk);
 

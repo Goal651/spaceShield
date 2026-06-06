@@ -14,7 +14,7 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
-public class RistAssessmentService {
+public class RiskAssessmentService {
     private final RiskAssessmentRepository riskAssessmentRepository;
     private final RiskAssessmentMapper riskAssessmentMapper;
 
