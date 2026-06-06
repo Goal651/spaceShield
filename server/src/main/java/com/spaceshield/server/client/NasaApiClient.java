@@ -1,11 +1,12 @@
 package com.spaceshield.server.client;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
-import com.spaceshield.server.dtos.asteroid.AsteroidDto;
+import com.spaceshield.server.client.response.neo.NeoFeedResponse;
 import com.spaceshield.server.dtos.fireball.FireballDto;
 import com.spaceshield.server.dtos.solar.SolarFlareDto;
 
@@ -16,16 +17,22 @@ import lombok.RequiredArgsConstructor;
 public class NasaApiClient {
     private final WebClient webClient;
 
-    public List<AsteroidDto> getAsteroids(){
-        return webClient.get()
-                .uri("/neo/rest/v1/feed")
-                .retrieve()
-                .bodyToFlux(AsteroidDto.class)
-                .collectList()
-                .block();
-    };
+    private final NasaProperties nasaProperties;
 
-    public List<SolarFlareDto> getSolarFlares(){
+    public NeoFeedResponse getAsteroidsRaw() {
+
+        return webClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/neo/rest/v1/feed")
+                        .queryParam("start_date", LocalDate.now())
+                        .queryParam("api_key", nasaProperties.getApiKey())
+                        .build())
+                .retrieve()
+                .bodyToMono(NeoFeedResponse.class)
+                .block();
+    }
+
+    public List<SolarFlareDto> getSolarFlares() {
         return webClient.get()
                 .uri("/space-weather/solar-flares")
                 .retrieve()
@@ -34,7 +41,7 @@ public class NasaApiClient {
                 .block();
     }
 
-    public List<FireballDto> getFireballs(){
+    public List<FireballDto> getFireballs() {
         return webClient.get()
                 .uri("/space-weather/fireballs")
                 .retrieve()

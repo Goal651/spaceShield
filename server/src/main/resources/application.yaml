@@ -1,8 +1,16 @@
 spring:
   application:
     name: server
-
+  datasource:
+    url:
+    username:
+    password:
+  kafka:
+    bootstrap-servers: localhost:9092
 
 server:
   port: 8080
 
+nasa:
+  api-key:
+  base-url: https://api.nasa.gov
