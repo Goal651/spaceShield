@@ -31,6 +31,13 @@ public class FireballService {
                 .collect(Collectors.toList());
     }
 
+    public List<FireballDTO> findMappable() {
+        return fireballRepository.findMappable()
+                .stream()
+                .map(fireballMapper::toDto)
+                .collect(Collectors.toList());
+    }
+
     public FireballDTO findById(Long id) {
         return fireballRepository.findById(id).map(fireballMapper::toDto).orElse(null);
     }

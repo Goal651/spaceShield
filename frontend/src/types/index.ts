@@ -16,6 +16,7 @@ export interface AsteroidDTO {
 export interface FireballDTO {
   id: number;
   eventDate: string;
+  lat: number | null;
   latDir: 'N' | 'S' | null;
   lon: number | null;
   lonDir: 'E' | 'W' | null;
@@ -26,6 +27,10 @@ export interface FireballDTO {
   riskScore: number;
   riskReason: string;
   ingestedAt: string;
+  /** Computed decimal latitude from NASA raw coords */
+  latitude: number | null;
+  /** Computed decimal longitude from NASA raw coords */
+  longitude: number | null;
 }
 
 export interface SolarFlareDTO {
@@ -39,4 +44,19 @@ export interface SolarFlareDTO {
   riskScore: number;
   riskReason: string;
   ingestedAt: string;
+}
+
+export interface DashboardDTO {
+  asteroids: AsteroidDTO[];
+  fireballs: FireballDTO[];
+  /** Fireballs with known coordinates (for map) */
+  mappableFireballs: FireballDTO[];
+  solarFlares: SolarFlareDTO[];
+  totalAsteroids: number;
+  totalFireballs: number;
+  totalSolarFlares: number;
+  criticalEvents: number;
+  watchEvents: number;
+  significantSolarFlares: number;
+  lastUpdated: string;
 }

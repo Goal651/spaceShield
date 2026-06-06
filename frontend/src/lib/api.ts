@@ -49,3 +49,12 @@ export async function fetchSolarFlareById(id: string): Promise<SolarFlareDTO> {
   }
   return response.json();
 }
+import { DashboardDTO } from '@/types';
+
+export async function fetchDashboard(): Promise<DashboardDTO> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/dashboard`);
+  if (!response.ok) {
+    throw new Error('Failed to fetch dashboard');
+  }
+  return response.json();
+}
