@@ -33,7 +33,7 @@ public class SpaceIngestionScheduler {
     }
 
     // ── Asteroids: pull once per day (NASA NEO feed is daily) ───────────────
-    @Scheduled(cron = "0 0 6 * * *") // 06:00 every day
+    @Scheduled(initialDelay = 10000 , cron = "0 0 6 * * *") // 06:00 every day
     public void ingestAsteroids() {
         String today = LocalDate.now().format(DATE_FMT);
         String tomorrow = LocalDate.now().plusDays(1).format(DATE_FMT);
@@ -48,7 +48,7 @@ public class SpaceIngestionScheduler {
     }
 
     // ── Solar flares: pull every 30 minutes (space weather changes fast) ────
-    @Scheduled(fixedRate = 1_800_000)
+    @Scheduled(initialDelay = 20000, fixedRate = 1_800_000)
     public void ingestSolarFlares() {
         String startDate = LocalDate.now().minusDays(1).format(DATE_FMT);
         String endDate = LocalDate.now().format(DATE_FMT);
@@ -63,7 +63,7 @@ public class SpaceIngestionScheduler {
     }
 
     // ── Fireballs: pull every 6 hours (CNEOS updates irregularly) ───────────
-    @Scheduled(fixedRate = 21_600_000)
+    @Scheduled(initialDelay = 30000 ,fixedRate = 21_600_000)
     public void ingestFireballs() {
         String dateMin = LocalDate.now().minusDays(7).format(DATE_FMT);
 
