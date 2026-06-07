@@ -17,7 +17,7 @@ public class WebConfig {
                         .allowedOrigins(
                             "http://localhost:3000",
                             "http://127.0.0.1:3000",
-                            "http://localhost:8080"
+                            "https://space-shield-six.vercel.app"
                         )
                         .allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
                         .allowedHeaders("*")
