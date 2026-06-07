@@ -2,10 +2,11 @@ package com.spaceshield.server.scheduler;
 
 import com.spaceshield.server.client.response.FireballDto;
 import com.spaceshield.server.client.response.SolarFlareDto;
+import com.spaceshield.server.event.AsteroidEvent;
+import com.spaceshield.server.event.FireballEvent;
+import com.spaceshield.server.event.SolarFlareEvent;
 import com.spaceshield.server.client.response.NearEarthObjectDto;
-import com.spaceshield.server.kafka.event.AsteroidEvent;
-import com.spaceshield.server.kafka.event.FireballEvent;
-import com.spaceshield.server.kafka.event.SolarFlareEvent;
+
 import org.springframework.stereotype.Component;
 
 @Component

@@ -2,6 +2,7 @@ package com.spaceshield.server.mapper;
 
 import org.mapstruct.AfterMapping;
 import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 
 import com.spaceshield.server.dto.FireballDTO;
@@ -10,6 +11,8 @@ import com.spaceshield.server.entity.Fireball;
 @Mapper(componentModel = "spring")
 public interface FireballMapper {
 
+    @Mapping(target = "latitude", ignore = true)
+    @Mapping(target = "longitude", ignore = true)
     FireballDTO toDto(Fireball entity);
 
     @AfterMapping

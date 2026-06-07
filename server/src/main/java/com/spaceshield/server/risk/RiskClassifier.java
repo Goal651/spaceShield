@@ -1,10 +1,11 @@
 package com.spaceshield.server.risk;
 
-import com.spaceshield.server.kafka.event.AsteroidEvent;
-import com.spaceshield.server.kafka.event.FireballEvent;
-import com.spaceshield.server.kafka.event.RiskEvent;
-import com.spaceshield.server.kafka.event.SolarFlareEvent;
 import org.springframework.stereotype.Component;
+
+import com.spaceshield.server.event.AsteroidEvent;
+import com.spaceshield.server.event.FireballEvent;
+import com.spaceshield.server.event.RiskEvent;
+import com.spaceshield.server.event.SolarFlareEvent;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;

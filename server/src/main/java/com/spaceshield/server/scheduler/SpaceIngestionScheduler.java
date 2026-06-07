@@ -1,7 +1,8 @@
 package com.spaceshield.server.scheduler;
 
 import com.spaceshield.server.client.NasaApiClient;
-import com.spaceshield.server.kafka.producer.SpaceEventProducer;
+import com.spaceshield.server.service.CoreProcessor;
+
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,7 +18,7 @@ import java.time.format.DateTimeFormatter;
 public class SpaceIngestionScheduler {
 
     private final NasaApiClient client;
-    private final SpaceEventProducer producer;
+    private final CoreProcessor processor;
     private final IngestionMapper mapper;
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
@@ -41,7 +42,7 @@ public class SpaceIngestionScheduler {
 
         client.getNeoFeed(today, tomorrow)
                 .map(mapper::toAsteroidEvent)
-                .doOnNext(producer::publishAsteroid)
+                .doOnNext(processor::processAsteroidData)
                 .doOnError(ex -> log.error("NEO ingestion failed: {}", ex.getMessage()))
                 .subscribe();
     }
@@ -56,7 +57,7 @@ public class SpaceIngestionScheduler {
 
         client.getSolarFlares(startDate, endDate)
                 .map(mapper::toSolarFlareEvent)
-                .doOnNext(producer::publishSolarFlare)
+                .doOnNext(processor::processSolarData)
                 .doOnError(ex -> log.error("Solar flare ingestion failed: {}", ex.getMessage()))
                 .subscribe();
     }
@@ -70,7 +71,7 @@ public class SpaceIngestionScheduler {
 
         client.getFireballs(dateMin, 50)
                 .map(mapper::toFireballEvent)
-                .doOnNext(producer::publishFireball)
+                .doOnNext(processor::processFireballData)
                 .doOnError(ex -> log.error("Fireball ingestion failed: {}", ex.getMessage()))
                 .subscribe();
     }

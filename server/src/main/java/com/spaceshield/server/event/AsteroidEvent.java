@@ -1,4 +1,4 @@
-package com.spaceshield.server.kafka.event;
+package com.spaceshield.server.event;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
