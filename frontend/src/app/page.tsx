@@ -123,10 +123,9 @@ export default function Home() {
   const [currentTime, setCurrentTime] = useState<string>('');
   const [selectedItem, setSelectedItem] = useState<AsteroidDTO | FireballDTO | SolarFlareDTO | null>(null);
   
-  // Use static data for telemetry bars to avoid impure function and cascading render errors
+  // Static bars for telemetry
   const telemetryBars = [45, 78, 23, 56, 89, 12, 44, 67, 34, 90, 15, 66, 32, 77, 10, 55, 88, 41, 29, 60];
   
-  // Use a derived ID or static string for detection hash
   const getHash = (item: AsteroidDTO | FireballDTO | SolarFlareDTO | null) => {
     if (!item) return '';
     if ('nasaId' in item) return `AST-${item.nasaId}`;
@@ -170,7 +169,7 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#0a0e17] grid-bg">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#030712] grid-bg">
         <div className="relative mb-8">
           <div className="w-20 h-20 border-2 border-cyan-500/10 border-t-cyan-500 rounded-full animate-spin" />
           <div className="absolute inset-0 flex items-center justify-center">
@@ -179,7 +178,7 @@ export default function Home() {
         </div>
         <div className="space-y-2 text-center">
           <p className="text-cyan-500 font-mono text-sm tracking-[0.3em] uppercase">Initializing Scanners</p>
-          <div className="w-48 h-1 bg-slate-800 rounded-full overflow-hidden mx-auto">
+          <div className="w-48 h-1 bg-slate-900 rounded-full overflow-hidden mx-auto">
             <div className="h-full bg-cyan-500 animate-[loading_2s_ease-in-out_infinite]" style={{ width: '40%' }} />
           </div>
         </div>
@@ -195,9 +194,9 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0e17] text-slate-200 flex overflow-hidden">
+    <div className="min-h-screen bg-[#030712] text-slate-200 flex overflow-hidden">
       {/* Sidebar - Desktop */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#0d1424] border-r border-slate-800/50 transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#020617] border-r border-slate-900 transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex flex-col h-full">
           <div className="p-6 flex items-center gap-3">
             <div className="w-10 h-10 bg-cyan-500/10 border border-cyan-500/20 rounded-xl flex items-center justify-center">
@@ -643,28 +642,28 @@ function DetailView({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 pt-8 border-t border-slate-800/50">
               {type === 'asteroids' && (
                 <>
-                  <DetailPoint label="Estimated Diameter" value={`${item.diameterMinKm?.toFixed(3)} - ${item.diameterMaxKm?.toFixed(3)} km`} />
-                  <DetailPoint label="Velocity" value={`${item.velocityKmPerSec?.toFixed(2)} km/s`} />
-                  <DetailPoint label="Miss Distance" value={`${Number(item.missDistanceKm).toLocaleString()} km`} />
-                  <DetailPoint label="Close Approach" value={new Date(item.closeApproachDate).toLocaleDateString(undefined, { dateStyle: 'long' })} />
+                  <DetailPoint label="Estimated Diameter" value={`${(item as AsteroidDTO).diameterMinKm?.toFixed(3)} - ${(item as AsteroidDTO).diameterMaxKm?.toFixed(3)} km`} />
+                  <DetailPoint label="Velocity" value={`${(item as AsteroidDTO).velocityKmPerSec?.toFixed(2)} km/s`} />
+                  <DetailPoint label="Miss Distance" value={`${Number((item as AsteroidDTO).missDistanceKm).toLocaleString()} km`} />
+                  <DetailPoint label="Close Approach" value={new Date((item as AsteroidDTO).closeApproachDate).toLocaleDateString(undefined, { dateStyle: 'long' })} />
                 </>
               )}
               {type === 'fireballs' && (
                 <>
-                  <DetailPoint label="Event Date" value={item.eventDate} />
-                  <DetailPoint label="Total Energy" value={`${item.energyJoules?.toFixed(2)} ×10¹⁰ Joules`} />
-                  <DetailPoint label="Impact Energy" value={`${item.impactEnergyKt?.toFixed(2)} Kilotons`} />
-                  <DetailPoint label="Altitude" value={item.altitudeKm ? `${item.altitudeKm.toFixed(1)} km` : 'Data Unavailable'} />
-                  <DetailPoint label="Coordinates" value={item.latitude ? `${item.latitude.toFixed(4)}°, ${item.longitude.toFixed(4)}°` : 'Location Not Triangulated'} />
+                  <DetailPoint label="Event Date" value={(item as FireballDTO).eventDate} />
+                  <DetailPoint label="Total Energy" value={`${(item as FireballDTO).energyJoules?.toFixed(2)} ×10¹⁰ Joules`} />
+                  <DetailPoint label="Impact Energy" value={`${(item as FireballDTO).impactEnergyKt?.toFixed(2)} Kilotons`} />
+                  <DetailPoint label="Altitude" value={(item as FireballDTO).altitudeKm ? `${(item as FireballDTO).altitudeKm?.toFixed(1)} km` : 'Data Unavailable'} />
+                  <DetailPoint label="Coordinates" value={(item as FireballDTO).latitude ? `${(item as FireballDTO).latitude?.toFixed(4)}°, ${(item as FireballDTO).longitude?.toFixed(4)}°` : 'Location Not Triangulated'} />
                 </>
               )}
               {type === 'solar-flares' && (
                 <>
-                  <DetailPoint label="Flare Class" value={item.classType} />
-                  <DetailPoint label="Source Location" value={item.sourceLocation || 'Active Region Undefined'} />
-                  <DetailPoint label="Begin Time" value={new Date(item.beginTime).toLocaleString()} />
-                  <DetailPoint label="Peak Time" value={new Date(item.peakTime).toLocaleString()} />
-                  <DetailPoint label="End Time" value={new Date(item.endTime).toLocaleString()} />
+                  <DetailPoint label="Flare Class" value={(item as SolarFlareDTO).classType} />
+                  <DetailPoint label="Source Location" value={(item as SolarFlareDTO).sourceLocation || 'Active Region Undefined'} />
+                  <DetailPoint label="Begin Time" value={new Date((item as SolarFlareDTO).beginTime).toLocaleString()} />
+                  <DetailPoint label="Peak Time" value={new Date((item as SolarFlareDTO).peakTime).toLocaleString()} />
+                  <DetailPoint label="End Time" value={new Date((item as SolarFlareDTO).endTime).toLocaleString()} />
                 </>
               )}
             </div>

@@ -109,11 +109,12 @@ function Earth({ fireballs }: { fireballs: FireballDTO[] }) {
 
 export default function Earth3D({ fireballs }: { fireballs: FireballDTO[] }) {
   return (
-    <div className="h-[500px] w-full relative bg-[#0a0e17] rounded-2xl overflow-hidden glass">
+    <div className="h-[500px] w-full relative bg-[#030712] rounded-2xl overflow-hidden glass">
       <Canvas camera={{ position: [0, 0, 6], fov: 45 }}>
-        <ambientLight intensity={0.5} />
-        <pointLight position={[10, 10, 10]} intensity={1} />
-        <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
+        <color attach="background" args={['#030712']} />
+        <ambientLight intensity={0.7} />
+        <pointLight position={[10, 10, 10]} intensity={1.5} />
+        <Stars radius={100} depth={50} count={7000} factor={4} saturation={0} fade speed={1} />
         
         <Float speed={1.5} rotationIntensity={0.5} floatIntensity={0.5}>
           <Earth fireballs={fireballs} />
