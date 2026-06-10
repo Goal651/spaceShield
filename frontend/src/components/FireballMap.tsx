@@ -98,8 +98,23 @@ export default function FireballMap({ fireballs }: FireballMapProps) {
           </Marker>
         ))}
       </MapContainer>
-      <div className="absolute bottom-4 right-4 bg-slate-900/80 backdrop-blur-md border border-slate-800 p-2 rounded-lg text-[10px] text-slate-400 font-mono z-[1000]">
-        PROJECTION ACTIVE • {validFireballs.length} TARGETS
+      <div className="absolute bottom-4 right-4 bg-slate-900/90 backdrop-blur-md border border-slate-800 p-3 rounded-xl z-[1000] space-y-2 shadow-2xl">
+        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-800 pb-1 mb-2">Impact Legend</div>
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-[#ef4444] shadow-[0_0_8px_#ef4444]" />
+          <span className="text-[10px] text-slate-300 font-medium uppercase">Critical Threat</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-[#f59e0b] shadow-[0_0_8px_#f59e0b]" />
+          <span className="text-[10px] text-slate-300 font-medium uppercase">Moderate Watch</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-[#10b981] shadow-[0_0_8px_#10b981]" />
+          <span className="text-[10px] text-slate-300 font-medium uppercase">Nominal Entry</span>
+        </div>
+        <div className="pt-1 mt-1 border-t border-slate-800">
+          <span className="text-[9px] text-slate-500 font-mono uppercase italic">{validFireballs.length} Active Targets</span>
+        </div>
       </div>
     </div>
   );
