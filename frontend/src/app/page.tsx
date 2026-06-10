@@ -1,7 +1,8 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
+import React from 'react';
 import { AsteroidDTO, FireballDTO, SolarFlareDTO, DashboardDTO } from '@/types';
 import { fetchDashboard } from '@/lib/api';
 import { 
@@ -20,7 +21,8 @@ import {
   Map as MapIcon,
   Zap,
   Target,
-  Maximize2
+  Maximize2,
+  LucideIcon
 } from 'lucide-react';
 
 // Dynamically import the map
@@ -31,6 +33,19 @@ const FireballMap = dynamic(() => import('@/components/FireballMap'), {
       <div className="flex flex-col items-center gap-3">
         <div className="w-8 h-8 border-2 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin" />
         <p className="text-slate-500 font-mono text-xs uppercase tracking-widest">Loading Orbital Map...</p>
+      </div>
+    </div>
+  ),
+});
+
+// Dynamically import the 3D Earth
+const Earth3D = dynamic(() => import('@/components/Earth3D'), {
+  ssr: false,
+  loading: () => (
+    <div className="bg-[#1a2234]/40 border border-slate-800/50 rounded-2xl h-[500px] flex items-center justify-center glass">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-8 h-8 border-2 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin" />
+        <p className="text-slate-500 font-mono text-xs uppercase tracking-widest">Booting 3D Engine...</p>
       </div>
     </div>
   ),
@@ -71,7 +86,7 @@ function SidebarItem({
 }: { 
   active: boolean; 
   onClick: () => void; 
-  icon: any; 
+  icon: LucideIcon; 
   label: string; 
   count?: number;
 }) {
@@ -106,7 +121,28 @@ export default function Home() {
   const [activeView, setActiveView] = useState<View>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState<string>('');
-  const [selectedItem, setSelectedItem] = useState<any | null>(null);
+  const [selectedItem, setSelectedItem] = useState<AsteroidDTO | FireballDTO | SolarFlareDTO | null>(null);
+  
+  // Use static data for telemetry bars to avoid impure function and cascading render errors
+  const telemetryBars = [45, 78, 23, 56, 89, 12, 44, 67, 34, 90, 15, 66, 32, 77, 10, 55, 88, 41, 29, 60];
+  
+  // Use a derived ID or static string for detection hash
+  const getHash = (item: AsteroidDTO | FireballDTO | SolarFlareDTO | null) => {
+    if (!item) return '';
+    if ('nasaId' in item) return `AST-${item.nasaId}`;
+    if ('flrId' in item) return `FLR-${item.flrId}`;
+    if ('id' in item) return `EVT-${item.id}`;
+    return 'SEC-01';
+  };
+  const detectionHash = getHash(selectedItem);
+
+  const getName = (item: AsteroidDTO | FireballDTO | SolarFlareDTO | null) => {
+    if (!item) return '';
+    if ('name' in item) return item.name;
+    if ('id' in item) return `Event #${item.id}`;
+    if ('flrId' in item) return item.flrId;
+    return 'Unknown Object';
+  };
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -153,7 +189,7 @@ export default function Home() {
 
   const hasCritical = (data?.criticalEvents ?? 0) > 0;
 
-  const handleCardClick = (item: any, view: View) => {
+  const handleCardClick = (item: AsteroidDTO | FireballDTO | SolarFlareDTO, view: View) => {
     setSelectedItem(item);
     setActiveView(view);
   };
@@ -189,21 +225,21 @@ export default function Home() {
               onClick={() => { setActiveView('asteroids'); setSidebarOpen(false); setSelectedItem(null); }}
               icon={Orbit} 
               label="Asteroids" 
-              count={data?.totalAsteroids}
+              count={data?.totalAsteroids ?? 0}
             />
             <SidebarItem 
               active={activeView === 'fireballs'} 
               onClick={() => { setActiveView('fireballs'); setSidebarOpen(false); setSelectedItem(null); }}
               icon={Flame} 
               label="Fireballs" 
-              count={data?.totalFireballs}
+              count={data?.totalFireballs ?? 0}
             />
             <SidebarItem 
               active={activeView === 'solar-flares'} 
               onClick={() => { setActiveView('solar-flares'); setSidebarOpen(false); setSelectedItem(null); }}
               icon={Sun} 
               label="Solar Flares" 
-              count={data?.totalSolarFlares}
+              count={data?.totalSolarFlares ?? 0}
             />
           </nav>
 
@@ -257,7 +293,7 @@ export default function Home() {
                   <div className="h-px w-12 bg-cyan-500/30 ml-2 hidden md:block"></div>
                 </h2>
                 <p className="text-slate-400 text-sm mt-1 max-w-md">
-                  {selectedItem ? `Detailed analysis for ${selectedItem.name || 'Event #' + selectedItem.id || selectedItem.flrId}` : (
+                  {selectedItem ? `Detailed analysis for ${getName(selectedItem)}` : (
                     activeView === 'dashboard' ? "Global overview of current space threats and planetary security status." :
                     activeView === 'asteroids' ? "Real-time tracking of Near-Earth Objects (NEOs) detected within our planetary neighborhood." :
                     activeView === 'fireballs' ? "Monitoring atmospheric entry events and impact energy data from fireball sightings worldwide." :
@@ -274,7 +310,13 @@ export default function Home() {
             {/* View Content */}
             <div className="fade-in">
               {selectedItem ? (
-                <DetailView item={selectedItem} type={activeView} onBack={() => setSelectedItem(null)} />
+                <DetailView 
+                  item={selectedItem} 
+                  type={activeView} 
+                  onBack={() => setSelectedItem(null)} 
+                  telemetryBars={telemetryBars}
+                  detectionHash={detectionHash}
+                />
               ) : (
                 <>
                   {activeView === 'dashboard' && (
@@ -312,16 +354,16 @@ export default function Home() {
                       </div>
 
                       {/* Map Section */}
-                      <div className="bg-[#1a2234]/40 border border-slate-800/50 rounded-2xl overflow-hidden glass">
-                        <div className="p-4 border-b border-slate-800/50 flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <MapIcon size={18} className="text-cyan-400" />
-                            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Orbital Threat Projection</h3>
-                          </div>
-                          <span className="text-[10px] font-mono text-slate-500 uppercase">{data?.mappableFireballs.length} Active Vectors</span>
-                        </div>
-                        <FireballMap fireballs={data?.mappableFireballs ?? []} />
+                  <div className="bg-[#1a2234]/40 border border-slate-800/50 rounded-2xl overflow-hidden glass">
+                    <div className="p-4 border-b border-slate-800/50 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <MapIcon size={18} className="text-cyan-400" />
+                        <h3 className="text-sm font-bold text-white uppercase tracking-wider">Orbital Threat Projection (3D)</h3>
                       </div>
+                      <span className="text-[10px] font-mono text-slate-500 uppercase">{data?.mappableFireballs.length} Active Vectors</span>
+                    </div>
+                    <Earth3D fireballs={data?.mappableFireballs ?? []} />
+                  </div>
 
                       {/* Recent Alerts Section */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -493,7 +535,7 @@ export default function Home() {
   );
 }
 
-function SummaryCard({ icon: Icon, label, value, color, pulse, onClick }: { icon: any; label: string; value: number; color: string; pulse?: boolean; onClick?: () => void }) {
+function SummaryCard({ icon: Icon, label, value, color, pulse, onClick }: { icon: LucideIcon; label: string; value: number; color: string; pulse?: boolean; onClick?: () => void }) {
   return (
     <button onClick={onClick} className="w-full text-left bg-[#1a2234]/40 border border-slate-800/50 rounded-2xl p-5 glass relative overflow-hidden group hover:border-cyan-500/30 transition-all">
       <div className="absolute top-0 right-0 p-3 opacity-10">
@@ -544,7 +586,32 @@ function EmptyState({ message }: { message: string }) {
   );
 }
 
-function DetailView({ item, type, onBack }: { item: any, type: View, onBack: () => void }) {
+function DetailView({ 
+  item, 
+  type, 
+  onBack, 
+  telemetryBars, 
+  detectionHash 
+}: { 
+  item: AsteroidDTO | FireballDTO | SolarFlareDTO, 
+  type: View, 
+  onBack: () => void, 
+  telemetryBars: number[], 
+  detectionHash: string 
+}) {
+  const getName = (i: AsteroidDTO | FireballDTO | SolarFlareDTO) => {
+    if ('name' in i) return i.name;
+    if ('id' in i) return `Event #${i.id}`;
+    if ('flrId' in i) return `Class ${i.classType}`;
+    return 'Unknown Object';
+  };
+
+  const getSubId = (i: AsteroidDTO | FireballDTO | SolarFlareDTO) => {
+    if ('nasaId' in i) return i.nasaId;
+    if ('flrId' in i) return i.flrId;
+    return 'Atmospheric Entry';
+  };
+
   return (
     <div className="space-y-6">
       <button onClick={onBack} className="flex items-center gap-2 text-xs font-bold text-cyan-500 uppercase tracking-widest hover:text-cyan-400 transition-colors">
@@ -563,13 +630,13 @@ function DetailView({ item, type, onBack }: { item: any, type: View, onBack: () 
                   {type === 'solar-flares' && <Sun size={32} className="text-yellow-400" />}
                 </div>
                 <div>
-                  <h3 className="text-2xl font-bold text-white tracking-tight">{item.name || 'Event #' + item.id || 'Class ' + item.classType}</h3>
-                  <p className="text-slate-500 font-mono text-xs uppercase tracking-widest">{item.nasaId || item.flrId || 'Atmospheric Entry'}</p>
+                  <h3 className="text-2xl font-bold text-white tracking-tight">{getName(item)}</h3>
+                  <p className="text-slate-500 font-mono text-xs uppercase tracking-widest">{getSubId(item)}</p>
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2">
                 <RiskBadge level={item.riskLevel} />
-                <span className="text-[10px] text-slate-500 font-mono">Detection Hash: {Math.random().toString(16).slice(2, 10).toUpperCase()}</span>
+                <span className="text-[10px] text-slate-500 font-mono">Detection Hash: {detectionHash}</span>
               </div>
             </div>
 
@@ -611,7 +678,7 @@ function DetailView({ item, type, onBack }: { item: any, type: View, onBack: () 
                 <div className={`h-full ${item.riskScore >= 7 ? 'bg-red-500' : item.riskScore >= 4 ? 'bg-amber-500' : 'bg-emerald-500'} transition-all duration-1000`} style={{ width: `${item.riskScore * 10}%` }} />
               </div>
               <p className="text-sm text-slate-400 leading-relaxed italic mt-4">
-                "{item.riskReason || 'Preliminary orbital analysis suggests no immediate threat. Continued monitoring advised.'}"
+                &quot;{item.riskReason || 'Preliminary orbital analysis suggests no immediate threat. Continued monitoring advised.'}&quot;
               </p>
             </div>
           </div>
@@ -639,8 +706,8 @@ function DetailView({ item, type, onBack }: { item: any, type: View, onBack: () 
             </div>
             <div className="mt-6 pt-6 border-t border-slate-800/50">
               <div className="h-20 flex items-end gap-1 px-1">
-                {[...Array(20)].map((_, i) => (
-                  <div key={i} className="flex-1 bg-cyan-500/20 rounded-t-sm animate-pulse" style={{ height: `${Math.random() * 100}%`, animationDelay: `${i * 0.1}s` }} />
+                {telemetryBars.map((height, i) => (
+                  <div key={i} className="flex-1 bg-cyan-500/20 rounded-t-sm animate-pulse" style={{ height: `${height}%`, animationDelay: `${i * 0.1}s` }} />
                 ))}
               </div>
             </div>
