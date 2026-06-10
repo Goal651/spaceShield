@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useRef, useMemo } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Sphere, MeshDistortMaterial, Float, Stars, Html } from '@react-three/drei';
+import { Canvas, useFrame, useLoader } from '@react-three/fiber';
+import { OrbitControls, Sphere, MeshDistortMaterial, Float, Stars, Html, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import { FireballDTO } from '@/types';
 
@@ -53,38 +53,50 @@ function ImpactMarker({ fireball }: { fireball: FireballDTO }) {
 
 function Earth({ fireballs }: { fireballs: FireballDTO[] }) {
   const earthRef = useRef<THREE.Group>(null);
+  
+  // High-quality Earth textures
+  const [colorMap, nightMap] = useTexture([
+    'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg',
+    'https://unpkg.com/three-globe/example/img/earth-night.jpg'
+  ]);
 
   useFrame((state) => {
     if (earthRef.current) {
-      earthRef.current.rotation.y += 0.002;
+      earthRef.current.rotation.y += 0.001;
     }
   });
 
   return (
     <group ref={earthRef}>
-      {/* Atmosphere Glow */}
-      <mesh scale={[1.1, 1.1, 1.1]}>
+      {/* Outer Atmosphere Glow */}
+      <mesh scale={[1.15, 1.15, 1.15]}>
         <sphereGeometry args={[2, 64, 64]} />
         <meshBasicMaterial color="#06b6d4" transparent opacity={0.05} side={THREE.BackSide} />
       </mesh>
       
-      {/* Main Earth Sphere */}
+      {/* Main Earth Body */}
       <mesh>
         <sphereGeometry args={[2, 64, 64]} />
         <meshStandardMaterial 
-          color="#0d1424" 
-          emissive="#06b6d4" 
-          emissiveIntensity={0.1} 
-          wireframe={true} 
-          transparent 
-          opacity={0.4} 
+          map={colorMap}
+          emissiveMap={nightMap}
+          emissive="#4ade80" 
+          emissiveIntensity={1.5}
+          roughness={0.5}
+          metalness={0.1}
         />
       </mesh>
 
-      {/* Solid Core */}
-      <mesh>
-        <sphereGeometry args={[1.98, 64, 64]} />
-        <meshStandardMaterial color="#0a0e17" />
+      {/* Holographic Grid Overlay */}
+      <mesh scale={[1.005, 1.005, 1.005]}>
+        <sphereGeometry args={[2, 64, 64]} />
+        <meshStandardMaterial 
+          color="#06b6d4" 
+          wireframe={true} 
+          transparent 
+          opacity={0.1} 
+          blending={THREE.AdditiveBlending}
+        />
       </mesh>
 
       {/* Impact Markers */}
