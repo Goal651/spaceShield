@@ -1,18 +1,21 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import React from 'react';
 import { AsteroidDTO, FireballDTO, SolarFlareDTO, DashboardDTO } from '@/types';
 import { fetchDashboard } from '@/lib/api';
-import { 
-  Shield, 
-  Orbit, 
-  Flame, 
-  Sun, 
-  LayoutDashboard, 
-  AlertTriangle, 
-  Info, 
+import { plainThreatDescription } from '@/lib/threat';
+import { RiskBadge, RiskMeter } from '@/components/ui/RiskBadge';
+import EventTimeline, { TimelineEvent } from '@/components/EventTimeline';
+import {
+  Shield,
+  Orbit,
+  Flame,
+  Sun,
+  LayoutDashboard,
+  AlertTriangle,
+  Info,
   Activity,
   Clock,
   ChevronRight,
@@ -22,30 +25,18 @@ import {
   Zap,
   Target,
   Maximize2,
-  LucideIcon
+  BookOpen,
+  RefreshCw,
+  LucideIcon,
 } from 'lucide-react';
 
-// Dynamically import the map
-const FireballMap = dynamic(() => import('@/components/FireballMap'), {
-  ssr: false,
-  loading: () => (
-    <div className="bg-[#1a2234]/40 border border-slate-800/50 rounded-2xl h-[450px] flex items-center justify-center glass">
-      <div className="flex flex-col items-center gap-3">
-        <div className="w-8 h-8 border-2 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin" />
-        <p className="text-slate-500 font-mono text-xs uppercase tracking-widest">Loading Orbital Map...</p>
-      </div>
-    </div>
-  ),
-});
-
-// Dynamically import the 3D Earth
 const Earth3D = dynamic(() => import('@/components/Earth3D'), {
   ssr: false,
   loading: () => (
-    <div className="bg-[#1a2234]/40 border border-slate-800/50 rounded-2xl h-[500px] flex items-center justify-center glass">
+    <div className="flex h-[520px] items-center justify-center rounded-2xl border border-white/5 glass">
       <div className="flex flex-col items-center gap-3">
-        <div className="w-8 h-8 border-2 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin" />
-        <p className="text-slate-500 font-mono text-xs uppercase tracking-widest">Booting 3D Engine...</p>
+        <div className="h-9 w-9 animate-spin rounded-full border-2 border-violet-500/20 border-t-violet-400" />
+        <p className="font-mono text-xs uppercase tracking-widest text-slate-500">Loading globe…</p>
       </div>
     </div>
   ),
@@ -53,60 +44,41 @@ const Earth3D = dynamic(() => import('@/components/Earth3D'), {
 
 type View = 'dashboard' | 'asteroids' | 'fireballs' | 'solar-flares';
 
-function RiskBadge({ level }: { level: string }) {
-  const baseClasses = 'px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest border';
-  switch (level) {
-    case 'CRITICAL': 
-      return <span className={`${baseClasses} border-red-500/50 bg-red-500/10 text-red-500 pulse-critical`}>{level}</span>;
-    case 'WATCH':    
-      return <span className={`${baseClasses} border-amber-500/50 bg-amber-500/10 text-amber-500`}>{level}</span>;
-    case 'SAFE':     
-      return <span className={`${baseClasses} border-emerald-500/50 bg-emerald-500/10 text-emerald-500`}>{level}</span>;
-    default:         
-      return <span className={`${baseClasses} border-slate-500/50 bg-slate-500/10 text-slate-400`}>{level}</span>;
-  }
-}
-
-function RiskMeter({ score }: { score: number }) {
-  const percentage = Math.min(Math.max(score, 0), 10) * 10;
-  const color = score >= 7 ? 'bg-red-500' : score >= 4 ? 'bg-amber-500' : 'bg-emerald-500';
-  return (
-    <div className="w-full bg-slate-800 rounded-full h-1 overflow-hidden">
-      <div className={`h-full ${color} transition-all duration-700 ease-out`} style={{ width: `${percentage}%` }} />
-    </div>
-  );
-}
-
-function SidebarItem({ 
-  active, 
-  onClick, 
-  icon: Icon, 
-  label, 
-  count 
-}: { 
-  active: boolean; 
-  onClick: () => void; 
-  icon: LucideIcon; 
-  label: string; 
+function SidebarItem({
+  active,
+  onClick,
+  icon: Icon,
+  label,
+  count,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: LucideIcon;
+  label: string;
   count?: number;
 }) {
   return (
-    <button 
+    <button
       onClick={onClick}
-      className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-all duration-200 group ${
-        active 
-          ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' 
-          : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
+      className={`group flex w-full items-center justify-between rounded-xl px-4 py-3 transition-all duration-200 ${
+        active
+          ? 'border border-violet-500/30 bg-violet-500/10 text-violet-300'
+          : 'text-slate-400 hover:bg-white/[0.04] hover:text-slate-200'
       }`}
     >
       <div className="flex items-center gap-3">
-        <Icon size={18} className={active ? 'text-cyan-400' : 'text-slate-500 group-hover:text-slate-300'} />
+        <Icon
+          size={18}
+          className={active ? 'text-violet-400' : 'text-slate-500 group-hover:text-slate-300'}
+        />
         <span className="text-sm font-medium">{label}</span>
       </div>
       {count !== undefined && count > 0 && (
-        <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
-          active ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-800 text-slate-500'
-        }`}>
+        <span
+          className={`rounded-md px-1.5 py-0.5 font-mono text-[10px] ${
+            active ? 'bg-violet-500/20 text-violet-300' : 'bg-white/5 text-slate-500'
+          }`}
+        >
           {count}
         </span>
       )}
@@ -114,72 +86,114 @@ function SidebarItem({
   );
 }
 
+function buildTimeline(data: DashboardDTO): TimelineEvent[] {
+  const events: TimelineEvent[] = [
+    ...data.asteroids.map((a) => ({
+      id: `ast-${a.nasaId}`,
+      type: 'asteroid' as const,
+      title: a.name,
+      subtitle: `${Number(a.missDistanceKm).toLocaleString()} km away`,
+      riskLevel: a.riskLevel,
+      timestamp: a.ingestedAt || a.closeApproachDate,
+      item: a,
+    })),
+    ...data.fireballs.map((f) => ({
+      id: `fb-${f.id}`,
+      type: 'fireball' as const,
+      title: `Fireball #${f.id}`,
+      subtitle: f.impactEnergyKt ? `${f.impactEnergyKt.toFixed(1)} kt energy` : 'Atmospheric entry',
+      riskLevel: f.riskLevel,
+      timestamp: f.ingestedAt || f.eventDate,
+      item: f,
+    })),
+    ...data.solarFlares.map((s) => ({
+      id: `sol-${s.flrId}`,
+      type: 'solar' as const,
+      title: `Class ${s.classType} flare`,
+      subtitle: s.sourceLocation || 'Solar activity',
+      riskLevel: s.riskLevel,
+      timestamp: s.ingestedAt || s.peakTime,
+      item: s,
+    })),
+  ];
+
+  return events
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    .slice(0, 8);
+}
+
 export default function Home() {
   const [data, setData] = useState<DashboardDTO | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<View>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [currentTime, setCurrentTime] = useState<string>('');
+  const [currentTime, setCurrentTime] = useState('');
   const [selectedItem, setSelectedItem] = useState<AsteroidDTO | FireballDTO | SolarFlareDTO | null>(null);
-  
-  // Static bars for telemetry
+
   const telemetryBars = [45, 78, 23, 56, 89, 12, 44, 67, 34, 90, 15, 66, 32, 77, 10, 55, 88, 41, 29, 60];
-  
-  const getHash = (item: AsteroidDTO | FireballDTO | SolarFlareDTO | null) => {
-    if (!item) return '';
-    if ('nasaId' in item) return `AST-${item.nasaId}`;
-    if ('flrId' in item) return `FLR-${item.flrId}`;
-    if ('id' in item) return `EVT-${item.id}`;
-    return 'SEC-01';
-  };
-  const detectionHash = getHash(selectedItem);
+
+  const timeline = useMemo(() => (data ? buildTimeline(data) : []), [data]);
+
+  const loadData = useCallback(async (silent = false) => {
+    if (!silent) setRefreshing(true);
+    try {
+      const dashboardData = await fetchDashboard();
+      setData(dashboardData);
+      setError(null);
+    } catch (err) {
+      setError('Could not reach SpaceShield — is the backend running on port 8080?');
+      console.error(err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date().toLocaleTimeString()), 1000);
+    loadData();
+    const interval = setInterval(() => loadData(true), 10_000);
+    return () => {
+      clearInterval(timer);
+      clearInterval(interval);
+    };
+  }, [loadData]);
 
   const getName = (item: AsteroidDTO | FireballDTO | SolarFlareDTO | null) => {
     if (!item) return '';
     if ('name' in item) return item.name;
     if ('id' in item) return `Event #${item.id}`;
-    if ('flrId' in item) return item.flrId;
-    return 'Unknown Object';
+    if ('flrId' in item) return `Class ${item.classType}`;
+    return 'Unknown';
   };
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date().toLocaleTimeString());
-    }, 1000);
+  const handleCardClick = (item: AsteroidDTO | FireballDTO | SolarFlareDTO, view: View) => {
+    setSelectedItem(item);
+    setActiveView(view);
+  };
 
-    async function loadData() {
-      try {
-        const dashboardData = await fetchDashboard();
-        setData(dashboardData);
-      } catch (err) {
-        setError('Failed to connect to Space Shield API');
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadData();
-    const interval = setInterval(loadData, 60000);
-    return () => {
-      clearInterval(timer);
-      clearInterval(interval);
-    };
-  }, []);
+  const handleTimelineSelect = (event: TimelineEvent) => {
+    const viewMap = { asteroid: 'asteroids', fireball: 'fireballs', solar: 'solar-flares' } as const;
+    handleCardClick(event.item, viewMap[event.type]);
+  };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#030712] grid-bg">
-        <div className="relative mb-8">
-          <div className="w-20 h-20 border-2 border-cyan-500/10 border-t-cyan-500 rounded-full animate-spin" />
+      <div className="relative flex min-h-screen flex-col items-center justify-center">
+        <div className="aurora-bg" />
+        <div className="relative z-10 mb-8">
+          <div className="h-24 w-24 animate-spin rounded-full border-2 border-violet-500/10 border-t-violet-400" />
           <div className="absolute inset-0 flex items-center justify-center">
-            <Shield className="text-cyan-500 animate-pulse" size={32} />
+            <Shield className="animate-pulse text-violet-400" size={36} />
           </div>
         </div>
-        <div className="space-y-2 text-center">
-          <p className="text-cyan-500 font-mono text-sm tracking-[0.3em] uppercase">Initializing Scanners</p>
-          <div className="w-48 h-1 bg-slate-900 rounded-full overflow-hidden mx-auto">
-            <div className="h-full bg-cyan-500 animate-[loading_2s_ease-in-out_infinite]" style={{ width: '40%' }} />
+        <div className="relative z-10 space-y-3 text-center">
+          <p className="gradient-text font-mono text-sm uppercase tracking-[0.35em]">SpaceShield</p>
+          <p className="text-sm text-slate-500">Connecting to NASA data feeds…</p>
+          <div className="mx-auto h-1 w-52 overflow-hidden rounded-full bg-white/5">
+            <div className="h-full w-2/5 animate-[loading_2s_ease-in-out_infinite] rounded-full bg-gradient-to-r from-violet-600 to-cyan-400" />
           </div>
         </div>
       </div>
@@ -188,78 +202,110 @@ export default function Home() {
 
   const hasCritical = (data?.criticalEvents ?? 0) > 0;
 
-  const handleCardClick = (item: AsteroidDTO | FireballDTO | SolarFlareDTO, view: View) => {
-    setSelectedItem(item);
-    setActiveView(view);
-  };
-
   return (
-    <div className="min-h-screen bg-[#030712] text-slate-200 flex overflow-hidden">
-      {/* Sidebar - Desktop */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#020617] border-r border-slate-900 transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="flex flex-col h-full">
-          <div className="p-6 flex items-center gap-3">
-            <div className="w-10 h-10 bg-cyan-500/10 border border-cyan-500/20 rounded-xl flex items-center justify-center">
-              <Shield className="text-cyan-400" size={24} />
+    <div className="relative flex min-h-screen overflow-hidden text-slate-200">
+      <div className="aurora-bg" />
+
+      {/* Sidebar */}
+      <aside
+        className={`glass-strong fixed inset-y-0 left-0 z-50 w-72 transform border-r border-white/5 transition-transform duration-300 lg:relative lg:translate-x-0 ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="flex h-full flex-col">
+          <div className="flex items-center gap-3 p-6">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-violet-500/30 bg-violet-500/10 glow-violet">
+              <Shield className="text-violet-400" size={22} />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-white tracking-tight">SPACE SHIELD</h1>
-              <div className="flex items-center gap-1.5">
-                <div className={`w-1.5 h-1.5 rounded-full ${hasCritical ? 'bg-red-500 animate-pulse' : 'bg-emerald-500'}`} />
-                <span className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">System Active</span>
+              <h1 className="gradient-text text-lg font-bold tracking-tight">SpaceShield</h1>
+              <div className="mt-0.5 flex items-center gap-1.5">
+                <div
+                  className={`live-dot h-1.5 w-1.5 rounded-full ${
+                    hasCritical ? 'bg-rose-400' : 'bg-emerald-400'
+                  }`}
+                />
+                <span className="font-mono text-[10px] uppercase tracking-wider text-slate-500">
+                  {hasCritical ? 'Elevated' : 'Nominal'}
+                </span>
               </div>
             </div>
           </div>
 
-          <nav className="flex-1 px-4 py-4 space-y-2">
-            <div className="text-[10px] font-bold text-slate-600 uppercase tracking-[0.2em] px-4 mb-4">Monitoring</div>
-            <SidebarItem 
-              active={activeView === 'dashboard'} 
-              onClick={() => { setActiveView('dashboard'); setSidebarOpen(false); setSelectedItem(null); }}
-              icon={LayoutDashboard} 
-              label="Dashboard" 
+          <nav className="flex-1 space-y-1.5 px-4 py-2">
+            <p className="mb-3 px-4 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600">
+              Explore
+            </p>
+            <SidebarItem
+              active={activeView === 'dashboard'}
+              onClick={() => {
+                setActiveView('dashboard');
+                setSidebarOpen(false);
+                setSelectedItem(null);
+              }}
+              icon={LayoutDashboard}
+              label="Overview"
             />
-            <SidebarItem 
-              active={activeView === 'asteroids'} 
-              onClick={() => { setActiveView('asteroids'); setSidebarOpen(false); setSelectedItem(null); }}
-              icon={Orbit} 
-              label="Asteroids" 
+            <SidebarItem
+              active={activeView === 'asteroids'}
+              onClick={() => {
+                setActiveView('asteroids');
+                setSidebarOpen(false);
+                setSelectedItem(null);
+              }}
+              icon={Orbit}
+              label="Asteroids"
               count={data?.totalAsteroids ?? 0}
             />
-            <SidebarItem 
-              active={activeView === 'fireballs'} 
-              onClick={() => { setActiveView('fireballs'); setSidebarOpen(false); setSelectedItem(null); }}
-              icon={Flame} 
-              label="Fireballs" 
+            <SidebarItem
+              active={activeView === 'fireballs'}
+              onClick={() => {
+                setActiveView('fireballs');
+                setSidebarOpen(false);
+                setSelectedItem(null);
+              }}
+              icon={Flame}
+              label="Fireballs"
               count={data?.totalFireballs ?? 0}
             />
-            <SidebarItem 
-              active={activeView === 'solar-flares'} 
-              onClick={() => { setActiveView('solar-flares'); setSidebarOpen(false); setSelectedItem(null); }}
-              icon={Sun} 
-              label="Solar Flares" 
+            <SidebarItem
+              active={activeView === 'solar-flares'}
+              onClick={() => {
+                setActiveView('solar-flares');
+                setSidebarOpen(false);
+                setSelectedItem(null);
+              }}
+              icon={Sun}
+              label="Solar weather"
               count={data?.totalSolarFlares ?? 0}
             />
           </nav>
 
-          <div className="p-4 border-t border-slate-800/50">
-            <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800/50">
-              <div className="flex items-center gap-3 mb-2">
-                <Activity size={16} className="text-cyan-400" />
-                <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Live Status</span>
+          <div className="border-t border-white/5 p-4">
+            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+              <div className="mb-3 flex items-center gap-2">
+                <Activity size={14} className="text-cyan-400" />
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+                  Live feed
+                </span>
+                {refreshing && <RefreshCw size={12} className="animate-spin text-violet-400" />}
               </div>
-              <div className="space-y-2">
-                <div className="flex justify-between text-[10px]">
-                  <span className="text-slate-500">Last Scan</span>
-                  <span className="text-slate-300 font-mono">
-                    {data ? new Date(data.lastUpdated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+              <div className="space-y-2 text-[10px]">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Last update</span>
+                  <span className="font-mono text-slate-300">
+                    {data
+                      ? new Date(data.lastUpdated).toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit',
+                        })
+                      : '--:--'}
                   </span>
                 </div>
-                <div className="flex justify-between text-[10px]">
-                  <span className="text-slate-500">Threat Level</span>
-                  <span className={hasCritical ? 'text-red-400 font-bold' : 'text-emerald-400'}>
-                    {hasCritical ? 'ELEVATED' : 'NOMINAL'}
-                  </span>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Refresh</span>
+                  <span className="text-cyan-400">Every 10s</span>
                 </div>
               </div>
             </div>
@@ -267,262 +313,311 @@ export default function Home() {
         </div>
       </aside>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative grid-bg">
-        {/* Mobile Header */}
-        <header className="lg:hidden h-16 flex items-center justify-between px-6 border-b border-slate-800/50 bg-[#0a0e17]/80 backdrop-blur-md sticky top-0 z-40">
-          <div className="flex items-center gap-3">
-            <Shield className="text-cyan-400" size={20} />
-            <span className="font-bold text-sm tracking-wider">SPACE SHIELD</span>
+      {/* Main */}
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col grid-bg">
+        <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-white/5 bg-[#05040c]/80 px-6 backdrop-blur-md lg:hidden">
+          <div className="flex items-center gap-2">
+            <Shield className="text-violet-400" size={20} />
+            <span className="text-sm font-bold tracking-wide">SpaceShield</span>
           </div>
-          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 text-slate-400 hover:text-white transition-colors">
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-white/5 hover:text-white"
+          >
             {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         </header>
 
-        {/* Content Area */}
         <main className="flex-1 overflow-y-auto p-6 lg:p-10">
-          <div className="max-w-6xl mx-auto space-y-8">
-            
-            {/* View Header */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div className="mx-auto max-w-6xl space-y-8">
+            {error && (
+              <div className="flex items-start gap-3 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4">
+                <AlertTriangle className="mt-0.5 shrink-0 text-rose-400" size={18} />
+                <div>
+                  <p className="text-sm font-medium text-rose-200">{error}</p>
+                  <button
+                    onClick={() => loadData()}
+                    className="mt-2 text-xs font-semibold text-rose-400 underline-offset-2 hover:underline"
+                  >
+                    Try again
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
               <div>
-                <h2 className="text-3xl font-bold text-white tracking-tight capitalize flex items-center gap-3">
-                  {selectedItem ? 'Event Details' : activeView.replace('-', ' ')}
-                  <div className="h-px w-12 bg-cyan-500/30 ml-2 hidden md:block"></div>
+                <h2 className="flex items-center gap-3 text-3xl font-bold capitalize tracking-tight text-white">
+                  {selectedItem ? 'Event details' : activeView.replace('-', ' ')}
+                  <span className="hidden h-px w-16 bg-gradient-to-r from-violet-500/50 to-transparent md:block" />
                 </h2>
-                <p className="text-slate-400 text-sm mt-1 max-w-md">
-                  {selectedItem ? `Detailed analysis for ${getName(selectedItem)}` : (
-                    activeView === 'dashboard' ? "Global overview of current space threats and planetary security status." :
-                    activeView === 'asteroids' ? "Real-time tracking of Near-Earth Objects (NEOs) detected within our planetary neighborhood." :
-                    activeView === 'fireballs' ? "Monitoring atmospheric entry events and impact energy data from fireball sightings worldwide." :
-                    "Space weather tracking of solar activity and its potential impact on planetary communications."
-                  )}
+                <p className="mt-2 max-w-lg text-sm leading-relaxed text-slate-400">
+                  {selectedItem
+                    ? `What you need to know about ${getName(selectedItem)}`
+                    : activeView === 'dashboard'
+                      ? 'A simple snapshot of what is happening in space near Earth right now.'
+                      : activeView === 'asteroids'
+                        ? 'Rocks flying past our planet — how close, how fast, and should you worry?'
+                        : activeView === 'fireballs'
+                          ? 'Bright meteors burning up in our atmosphere, seen from the ground.'
+                          : 'Bursts of energy from the Sun that can affect satellites and radio signals.'}
                 </p>
               </div>
-              <div className="flex items-center gap-3 bg-slate-900/50 px-4 py-2 rounded-lg border border-slate-800/50">
+              <div className="flex items-center gap-2 rounded-xl border border-white/5 bg-white/[0.03] px-4 py-2.5">
                 <Clock size={14} className="text-slate-500" />
-                <span className="text-xs font-mono text-slate-400 uppercase tracking-widest">{currentTime}</span>
+                <span className="font-mono text-xs uppercase tracking-widest text-slate-400">
+                  {currentTime}
+                </span>
               </div>
             </div>
 
-            {/* View Content */}
             <div className="fade-in">
               {selectedItem ? (
-                <DetailView 
-                  item={selectedItem} 
-                  type={activeView} 
-                  onBack={() => setSelectedItem(null)} 
-                  telemetryBars={telemetryBars}
-                  detectionHash={detectionHash}
-                />
+                <DetailView item={selectedItem} type={activeView} onBack={() => setSelectedItem(null)} telemetryBars={telemetryBars} />
               ) : (
                 <>
                   {activeView === 'dashboard' && (
                     <div className="space-y-6">
-                      {/* Summary Stats */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <SummaryCard 
-                          icon={Orbit} 
-                          label="Total Asteroids" 
-                          value={data?.totalAsteroids ?? 0} 
-                          color="text-cyan-400" 
+                      {/* Educational banner */}
+                      <div className="card-shine relative overflow-hidden rounded-2xl border border-violet-500/20 bg-gradient-to-br from-violet-500/10 via-transparent to-cyan-500/5 p-6 glow-violet">
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="flex items-start gap-4">
+                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-violet-500/30 bg-violet-500/10">
+                              <BookOpen className="text-violet-400" size={22} />
+                            </div>
+                            <div>
+                              <h3 className="text-sm font-bold text-white">Made for everyone</h3>
+                              <p className="mt-1 max-w-xl text-sm leading-relaxed text-slate-400">
+                                SpaceShield turns NASA data into plain language.{' '}
+                                <span className="text-emerald-400">All clear</span> means relax,{' '}
+                                <span className="text-amber-400">worth watching</span> means scientists
+                                are tracking it, and{' '}
+                                <span className="text-rose-400">needs attention</span> means it is
+                                unusually significant.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex shrink-0 gap-2">
+                            <RiskBadge level="SAFE" />
+                            <RiskBadge level="WATCH" />
+                            <RiskBadge level="CRITICAL" />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        <SummaryCard
+                          icon={Orbit}
+                          label="Asteroids tracked"
+                          value={data?.totalAsteroids ?? 0}
+                          accent="violet"
                           onClick={() => setActiveView('asteroids')}
                         />
-                        <SummaryCard 
-                          icon={Flame} 
-                          label="Fireball Events" 
-                          value={data?.totalFireballs ?? 0} 
-                          color="text-amber-400" 
+                        <SummaryCard
+                          icon={Flame}
+                          label="Fireball events"
+                          value={data?.totalFireballs ?? 0}
+                          accent="orange"
                           onClick={() => setActiveView('fireballs')}
                         />
-                        <SummaryCard 
-                          icon={Sun} 
-                          label="Solar Activity" 
-                          value={data?.totalSolarFlares ?? 0} 
-                          color="text-yellow-400" 
+                        <SummaryCard
+                          icon={Sun}
+                          label="Solar flares"
+                          value={data?.totalSolarFlares ?? 0}
+                          accent="amber"
                           onClick={() => setActiveView('solar-flares')}
                         />
-                        <SummaryCard 
-                          icon={AlertTriangle} 
-                          label="Critical Threats" 
-                          value={data?.criticalEvents ?? 0} 
-                          color={hasCritical ? "text-red-500" : "text-emerald-500"} 
+                        <SummaryCard
+                          icon={AlertTriangle}
+                          label="High priority"
+                          value={data?.criticalEvents ?? 0}
+                          accent={hasCritical ? 'rose' : 'safe'}
                           pulse={hasCritical}
                         />
                       </div>
 
-                      {/* Map Section */}
-                  <div className="bg-[#1a2234]/40 border border-slate-800/50 rounded-2xl overflow-hidden glass">
-                    <div className="p-4 border-b border-slate-800/50 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <MapIcon size={18} className="text-cyan-400" />
-                        <h3 className="text-sm font-bold text-white uppercase tracking-wider">Orbital Threat Projection (3D)</h3>
+                      <div className="overflow-hidden rounded-2xl border border-white/5 glass glow-violet">
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 p-4">
+                          <div className="flex items-center gap-3">
+                            <MapIcon size={18} className="text-violet-400" />
+                            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-200">
+                              Global view
+                            </h3>
+                          </div>
+                          <div className="flex items-center gap-2 font-mono text-[10px] text-slate-500">
+                            <span className="flex items-center gap-1.5 text-emerald-400">
+                              <span className="live-dot h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                              Live
+                            </span>
+                            <span className="text-slate-700">·</span>
+                            <span>
+                              {data?.asteroids.length || 0} asteroids · {data?.fireballs.length || 0}{' '}
+                              fireballs · {data?.solarFlares.length || 0} flares
+                            </span>
+                          </div>
+                        </div>
+                        {data && (
+                          <Earth3D
+                            asteroids={data.asteroids}
+                            fireballs={data.mappableFireballs}
+                            solarFlares={data.solarFlares}
+                          />
+                        )}
                       </div>
-                      <span className="text-[10px] font-mono text-slate-500 uppercase">{data?.mappableFireballs.length} Active Vectors</span>
-                    </div>
-                    <Earth3D fireballs={data?.mappableFireballs ?? []} />
-                  </div>
 
-                      {/* Recent Alerts Section */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="bg-[#1a2234]/40 border border-slate-800/50 rounded-2xl p-6 glass">
-                          <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
-                            <Zap size={16} className="text-yellow-500" />
-                            Recent Solar Activity
-                          </h3>
-                          <div className="space-y-3">
-                            {data?.solarFlares.slice(0, 3).map(flare => (
-                              <button key={flare.flrId} onClick={() => handleCardClick(flare, 'solar-flares')} className="w-full flex items-center justify-between p-3 rounded-xl bg-slate-900/50 border border-slate-800/50 hover:border-yellow-500/30 transition-all text-left group">
+                      <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
+                        <div className="lg:col-span-3">
+                          <EventTimeline events={timeline} onSelect={handleTimelineSelect} />
+                        </div>
+                        <div className="space-y-6 lg:col-span-2">
+                          <AlertPanel
+                            title="Solar activity"
+                            icon={Zap}
+                            iconColor="text-amber-400"
+                            items={data?.solarFlares.slice(0, 3) ?? []}
+                            renderItem={(flare) => (
+                              <button
+                                key={flare.flrId}
+                                onClick={() => handleCardClick(flare, 'solar-flares')}
+                                className="group flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.02] p-3 text-left transition-all hover:border-amber-500/30"
+                              >
                                 <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-lg bg-yellow-500/10 flex items-center justify-center border border-yellow-500/20">
-                                    <Sun size={14} className="text-yellow-500" />
+                                  <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-amber-500/20 bg-amber-500/10">
+                                    <Sun size={14} className="text-amber-400" />
                                   </div>
                                   <div>
                                     <div className="text-xs font-bold text-white">Class {flare.classType}</div>
-                                    <div className="text-[10px] text-slate-500 font-mono">{flare.flrId}</div>
+                                    <div className="text-[10px] text-slate-500">{flare.riskReason?.slice(0, 48)}…</div>
                                   </div>
                                 </div>
-                                <ChevronRight size={14} className="text-slate-600 group-hover:text-yellow-500 transition-colors" />
+                                <ChevronRight size={14} className="text-slate-600 group-hover:text-amber-400" />
                               </button>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="bg-[#1a2234]/40 border border-slate-800/50 rounded-2xl p-6 glass">
-                          <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
-                            <Target size={16} className="text-red-500" />
-                            High Risk Asteroids
-                          </h3>
-                          <div className="space-y-3">
-                            {data?.asteroids.filter(a => a.riskLevel !== 'SAFE').slice(0, 3).map(asteroid => (
-                              <button key={asteroid.nasaId} onClick={() => handleCardClick(asteroid, 'asteroids')} className="w-full flex items-center justify-between p-3 rounded-xl bg-slate-900/50 border border-slate-800/50 hover:border-cyan-500/30 transition-all text-left group">
+                            )}
+                          />
+                          <AlertPanel
+                            title="Closer asteroids"
+                            icon={Target}
+                            iconColor="text-violet-400"
+                            items={data?.asteroids.filter((a) => a.riskLevel !== 'SAFE').slice(0, 3) ?? []}
+                            renderItem={(asteroid) => (
+                              <button
+                                key={asteroid.nasaId}
+                                onClick={() => handleCardClick(asteroid, 'asteroids')}
+                                className="group flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.02] p-3 text-left transition-all hover:border-violet-500/30"
+                              >
                                 <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-lg bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20">
-                                    <Orbit size={14} className="text-cyan-500" />
+                                  <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-violet-500/20 bg-violet-500/10">
+                                    <Orbit size={14} className="text-violet-400" />
                                   </div>
                                   <div>
-                                    <div className="text-xs font-bold text-white truncate max-w-[120px]">{asteroid.name}</div>
-                                    <div className="text-[10px] text-slate-500 font-mono">Score: {asteroid.riskScore}/10</div>
+                                    <div className="max-w-[130px] truncate text-xs font-bold text-white">
+                                      {asteroid.name}
+                                    </div>
+                                    <div className="text-[10px] text-slate-500">
+                                      {Number(asteroid.missDistanceKm).toLocaleString()} km away
+                                    </div>
                                   </div>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                  <RiskBadge level={asteroid.riskLevel} />
-                                  <ChevronRight size={14} className="text-slate-600 group-hover:text-cyan-500 transition-colors" />
-                                </div>
+                                <RiskBadge level={asteroid.riskLevel} compact />
                               </button>
-                            ))}
-                          </div>
+                            )}
+                          />
                         </div>
                       </div>
                     </div>
                   )}
 
                   {activeView === 'asteroids' && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {data?.asteroids.length === 0 ? (
-                        <EmptyState message="No asteroids detected in recent scans" />
-                      ) : (
-                        data?.asteroids.map((asteroid) => (
-                          <DataCard key={asteroid.nasaId} onClick={() => handleCardClick(asteroid, 'asteroids')}>
-                            <div className="flex items-start justify-between mb-4">
-                              <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-lg bg-slate-800/50 border border-slate-700/50 flex items-center justify-center">
-                                  <Orbit size={20} className="text-cyan-400" />
-                                </div>
-                                <div>
-                                  <div className="text-sm font-bold text-white">{asteroid.name}</div>
-                                  <div className="text-[10px] font-mono text-slate-500">ID: {asteroid.nasaId}</div>
-                                </div>
-                              </div>
-                              <RiskBadge level={asteroid.riskLevel} />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4 mb-4">
-                              <DataPoint label="Diameter" value={`${asteroid.diameterMinKm?.toFixed(2)} - ${asteroid.diameterMaxKm?.toFixed(2)} km`} />
-                              <DataPoint label="Miss Distance" value={`${Number(asteroid.missDistanceKm).toLocaleString()} km`} />
-                            </div>
-                            <div className="space-y-1.5 pt-4 border-t border-slate-800/50">
-                              <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider">
-                                <span className="text-slate-500">Risk Assessment</span>
-                                <span className="text-slate-300 font-mono">{asteroid.riskScore}/10</span>
-                              </div>
-                              <RiskMeter score={asteroid.riskScore} />
-                            </div>
-                          </DataCard>
-                        ))
+                    <EventGrid
+                      empty="No asteroids in the latest scan"
+                      items={data?.asteroids ?? []}
+                      render={(asteroid) => (
+                        <DataCard key={asteroid.nasaId} onClick={() => handleCardClick(asteroid, 'asteroids')}>
+                          <CardHeader
+                            icon={Orbit}
+                            iconClass="text-violet-400"
+                            title={asteroid.name}
+                            subtitle={`ID ${asteroid.nasaId}`}
+                            riskLevel={asteroid.riskLevel}
+                          />
+                          <div className="mb-4 grid grid-cols-2 gap-4">
+                            <DataPoint
+                              label="Size"
+                              value={`${asteroid.diameterMinKm?.toFixed(2)}–${asteroid.diameterMaxKm?.toFixed(2)} km`}
+                            />
+                            <DataPoint
+                              label="Closest approach"
+                              value={`${Number(asteroid.missDistanceKm).toLocaleString()} km`}
+                            />
+                          </div>
+                          {asteroid.riskReason && (
+                            <p className="mb-4 text-xs leading-relaxed text-slate-500">{asteroid.riskReason}</p>
+                          )}
+                          <RiskFooter score={asteroid.riskScore} />
+                        </DataCard>
                       )}
-                    </div>
+                    />
                   )}
 
                   {activeView === 'fireballs' && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {data?.fireballs.length === 0 ? (
-                        <EmptyState message="No fireball events recorded" />
-                      ) : (
-                        data?.fireballs.map((fireball) => (
-                          <DataCard key={fireball.id} onClick={() => handleCardClick(fireball, 'fireballs')}>
-                            <div className="flex items-start justify-between mb-4">
-                              <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-lg bg-slate-800/50 border border-slate-700/50 flex items-center justify-center">
-                                  <Flame size={20} className="text-amber-400" />
-                                </div>
-                                <div>
-                                  <div className="text-sm font-bold text-white">Event #{fireball.id}</div>
-                                  <div className="text-[10px] font-mono text-slate-500">{fireball.eventDate}</div>
-                                </div>
-                              </div>
-                              <RiskBadge level={fireball.riskLevel} />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4 mb-4">
-                              <DataPoint label="Total Energy" value={`${fireball.energyJoules?.toFixed(2)} ×10¹⁰ J`} />
-                              <DataPoint label="Impact Energy" value={`${fireball.impactEnergyKt?.toFixed(2)} kt`} />
-                            </div>
-                            <div className="space-y-1.5 pt-4 border-t border-slate-800/50">
-                              <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider">
-                                <span className="text-slate-500">Risk Assessment</span>
-                                <span className="text-slate-300 font-mono">{fireball.riskScore}/10</span>
-                              </div>
-                              <RiskMeter score={fireball.riskScore} />
-                            </div>
-                          </DataCard>
-                        ))
+                    <EventGrid
+                      empty="No fireballs recorded yet"
+                      items={data?.fireballs ?? []}
+                      render={(fireball) => (
+                        <DataCard key={fireball.id} onClick={() => handleCardClick(fireball, 'fireballs')}>
+                          <CardHeader
+                            icon={Flame}
+                            iconClass="text-orange-400"
+                            title={`Event #${fireball.id}`}
+                            subtitle={fireball.eventDate}
+                            riskLevel={fireball.riskLevel}
+                          />
+                          <div className="mb-4 grid grid-cols-2 gap-4">
+                            <DataPoint label="Energy released" value={`${fireball.impactEnergyKt?.toFixed(2)} kt`} />
+                            <DataPoint
+                              label="When"
+                              value={new Date(fireball.eventDate).toLocaleDateString(undefined, { dateStyle: 'medium' })}
+                            />
+                          </div>
+                          {fireball.riskReason && (
+                            <p className="mb-4 text-xs leading-relaxed text-slate-500">{fireball.riskReason}</p>
+                          )}
+                          <RiskFooter score={fireball.riskScore} />
+                        </DataCard>
                       )}
-                    </div>
+                    />
                   )}
 
                   {activeView === 'solar-flares' && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {data?.solarFlares.length === 0 ? (
-                        <EmptyState message="No solar activity detected" />
-                      ) : (
-                        data?.solarFlares.map((flare) => (
-                          <DataCard key={flare.flrId} onClick={() => handleCardClick(flare, 'solar-flares')}>
-                            <div className="flex items-start justify-between mb-4">
-                              <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-lg bg-slate-800/50 border border-slate-700/50 flex items-center justify-center">
-                                  <Sun size={20} className="text-yellow-400" />
-                                </div>
-                                <div>
-                                  <div className="text-sm font-bold text-white">Class {flare.classType}</div>
-                                  <div className="text-[10px] font-mono text-slate-500">{flare.flrId}</div>
-                                </div>
-                              </div>
-                              <RiskBadge level={flare.riskLevel} />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4 mb-4">
-                              <DataPoint label="Peak Time" value={flare.peakTime.split('T')[1]?.replace('Z', '') || flare.peakTime} />
-                              <DataPoint label="Location" value={flare.sourceLocation || 'Unknown'} />
-                            </div>
-                            <div className="space-y-1.5 pt-4 border-t border-slate-800/50">
-                              <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider">
-                                <span className="text-slate-500">Intensity Score</span>
-                                <span className="text-slate-300 font-mono">{flare.riskScore}/10</span>
-                              </div>
-                              <RiskMeter score={flare.riskScore} />
-                            </div>
-                          </DataCard>
-                        ))
+                    <EventGrid
+                      empty="No solar activity detected"
+                      items={data?.solarFlares ?? []}
+                      render={(flare) => (
+                        <DataCard key={flare.flrId} onClick={() => handleCardClick(flare, 'solar-flares')}>
+                          <CardHeader
+                            icon={Sun}
+                            iconClass="text-amber-400"
+                            title={`Class ${flare.classType}`}
+                            subtitle={flare.flrId}
+                            riskLevel={flare.riskLevel}
+                          />
+                          <div className="mb-4 grid grid-cols-2 gap-4">
+                            <DataPoint
+                              label="Peak time"
+                              value={new Date(flare.peakTime).toLocaleString(undefined, {
+                                dateStyle: 'short',
+                                timeStyle: 'short',
+                              })}
+                            />
+                            <DataPoint label="On the Sun" value={flare.sourceLocation || 'Unknown region'} />
+                          </div>
+                          {flare.riskReason && (
+                            <p className="mb-4 text-xs leading-relaxed text-slate-500">{flare.riskReason}</p>
+                          )}
+                          <RiskFooter score={flare.riskScore} />
+                        </DataCard>
                       )}
-                    </div>
+                    />
                   )}
                 </>
               )}
@@ -534,41 +629,145 @@ export default function Home() {
   );
 }
 
-function SummaryCard({ icon: Icon, label, value, color, pulse, onClick }: { icon: LucideIcon; label: string; value: number; color: string; pulse?: boolean; onClick?: () => void }) {
+/* ── Sub-components ─────────────────────────────────────────────── */
+
+const accentMap = {
+  violet: { text: 'text-violet-400', border: 'hover:border-violet-500/30', bg: 'from-violet-600/10' },
+  orange: { text: 'text-orange-400', border: 'hover:border-orange-500/30', bg: 'from-orange-600/10' },
+  amber: { text: 'text-amber-400', border: 'hover:border-amber-500/30', bg: 'from-amber-600/10' },
+  rose: { text: 'text-rose-400', border: 'hover:border-rose-500/30', bg: 'from-rose-600/10' },
+  safe: { text: 'text-emerald-400', border: 'hover:border-emerald-500/30', bg: 'from-emerald-600/10' },
+};
+
+function SummaryCard({
+  icon: Icon,
+  label,
+  value,
+  accent,
+  pulse,
+  onClick,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: number;
+  accent: keyof typeof accentMap;
+  pulse?: boolean;
+  onClick?: () => void;
+}) {
+  const a = accentMap[accent];
   return (
-    <button onClick={onClick} className="w-full text-left bg-[#1a2234]/40 border border-slate-800/50 rounded-2xl p-5 glass relative overflow-hidden group hover:border-cyan-500/30 transition-all">
-      <div className="absolute top-0 right-0 p-3 opacity-10">
-        <Icon size={40} className={color} />
-      </div>
-      <div className="flex items-center gap-3 mb-3">
-        <div className={`w-8 h-8 rounded-lg bg-slate-800/50 flex items-center justify-center border border-slate-700/50 ${pulse ? 'animate-pulse' : ''}`}>
-          <Icon size={18} className={color} />
+    <button
+      onClick={onClick}
+      className={`card-shine group relative w-full overflow-hidden rounded-2xl border border-white/5 bg-gradient-to-br ${a.bg} to-transparent p-5 text-left glass transition-all ${a.border}`}
+    >
+      <Icon size={48} className={`absolute -right-2 -top-2 opacity-[0.07] ${a.text}`} />
+      <div className="mb-3 flex items-center gap-3">
+        <div
+          className={`flex h-9 w-9 items-center justify-center rounded-xl border border-white/5 bg-white/[0.03] ${pulse ? 'animate-pulse' : ''}`}
+        >
+          <Icon size={18} className={a.text} />
         </div>
-        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{label}</span>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{label}</span>
       </div>
       <div className="flex items-end justify-between">
-        <div className="text-2xl font-bold text-white tracking-tight">{value}</div>
-        <ChevronRight size={16} className="text-slate-600 group-hover:text-cyan-500 transition-colors" />
+        <span className="text-3xl font-bold tracking-tight text-white">{value}</span>
+        {onClick && (
+          <ChevronRight size={16} className="text-slate-600 transition-colors group-hover:text-violet-400" />
+        )}
       </div>
     </button>
   );
 }
 
-function DataCard({ children, onClick }: { children: React.ReactNode, onClick?: () => void }) {
+function AlertPanel<T>({
+  title,
+  icon: Icon,
+  iconColor,
+  items,
+  renderItem,
+}: {
+  title: string;
+  icon: LucideIcon;
+  iconColor: string;
+  items: T[];
+  renderItem: (item: T) => React.ReactNode;
+}) {
   return (
-    <button onClick={onClick} className="w-full text-left bg-[#1a2234]/40 border border-slate-800/50 rounded-2xl p-5 hover:border-cyan-500/30 transition-all duration-300 group relative overflow-hidden glass">
-      <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
-        <Maximize2 size={14} className="text-cyan-500" />
-      </div>
+    <div className="rounded-2xl border border-white/5 p-5 glass">
+      <h3 className={`mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white`}>
+        <Icon size={16} className={iconColor} />
+        {title}
+      </h3>
+      <div className="space-y-2">{items.map(renderItem)}</div>
+    </div>
+  );
+}
+
+function EventGrid<T>({ items, empty, render }: { items: T[]; empty: string; render: (item: T) => React.ReactNode }) {
+  if (items.length === 0) return <EmptyState message={empty} />;
+  return <div className="grid grid-cols-1 gap-4 md:grid-cols-2">{items.map(render)}</div>;
+}
+
+function DataCard({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="card-shine group relative w-full overflow-hidden rounded-2xl border border-white/5 p-5 text-left glass transition-all hover:border-violet-500/25"
+    >
+      <Maximize2
+        size={14}
+        className="absolute right-4 top-4 text-violet-400 opacity-0 transition-opacity group-hover:opacity-100"
+      />
       {children}
     </button>
+  );
+}
+
+function CardHeader({
+  icon: Icon,
+  iconClass,
+  title,
+  subtitle,
+  riskLevel,
+}: {
+  icon: LucideIcon;
+  iconClass: string;
+  title: string;
+  subtitle: string;
+  riskLevel: string;
+}) {
+  return (
+    <div className="mb-4 flex items-start justify-between">
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/5 bg-white/[0.03]">
+          <Icon size={20} className={iconClass} />
+        </div>
+        <div>
+          <div className="text-sm font-bold text-white">{title}</div>
+          <div className="font-mono text-[10px] text-slate-500">{subtitle}</div>
+        </div>
+      </div>
+      <RiskBadge level={riskLevel} />
+    </div>
+  );
+}
+
+function RiskFooter({ score }: { score: number }) {
+  return (
+    <div className="space-y-1.5 border-t border-white/5 pt-4">
+      <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider">
+        <span className="text-slate-500">Threat level</span>
+        <span className="font-mono text-slate-300">{score}/100</span>
+      </div>
+      <RiskMeter score={score} />
+    </div>
   );
 }
 
 function DataPoint({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">{label}</div>
+      <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">{label}</div>
       <div className="text-xs font-semibold text-slate-300">{value}</div>
     </div>
   );
@@ -576,149 +775,176 @@ function DataPoint({ label, value }: { label: string; value: string }) {
 
 function EmptyState({ message }: { message: string }) {
   return (
-    <div className="col-span-full py-20 flex flex-col items-center justify-center text-center space-y-4">
-      <div className="w-16 h-16 rounded-full bg-slate-900/50 flex items-center justify-center border border-slate-800">
-        <AlertTriangle size={24} className="text-slate-600" />
+    <div className="col-span-full flex flex-col items-center justify-center space-y-4 py-20 text-center">
+      <div className="flex h-16 w-16 items-center justify-center rounded-full border border-white/5 bg-white/[0.02]">
+        <Info size={24} className="text-slate-600" />
       </div>
-      <p className="text-slate-500 font-medium">{message}</p>
+      <p className="font-medium text-slate-500">{message}</p>
     </div>
   );
 }
 
-function DetailView({ 
-  item, 
-  type, 
-  onBack, 
-  telemetryBars, 
-  detectionHash 
-}: { 
-  item: AsteroidDTO | FireballDTO | SolarFlareDTO, 
-  type: View, 
-  onBack: () => void, 
-  telemetryBars: number[], 
-  detectionHash: string 
+function DetailView({
+  item,
+  type,
+  onBack,
+  telemetryBars,
+}: {
+  item: AsteroidDTO | FireballDTO | SolarFlareDTO;
+  type: View;
+  onBack: () => void;
+  telemetryBars: number[];
 }) {
   const getName = (i: AsteroidDTO | FireballDTO | SolarFlareDTO) => {
     if ('name' in i) return i.name;
     if ('id' in i) return `Event #${i.id}`;
     if ('flrId' in i) return `Class ${i.classType}`;
-    return 'Unknown Object';
+    return 'Unknown';
   };
 
   const getSubId = (i: AsteroidDTO | FireballDTO | SolarFlareDTO) => {
     if ('nasaId' in i) return i.nasaId;
     if ('flrId' in i) return i.flrId;
-    return 'Atmospheric Entry';
+    return 'Atmospheric entry';
   };
 
   return (
     <div className="space-y-6">
-      <button onClick={onBack} className="flex items-center gap-2 text-xs font-bold text-cyan-500 uppercase tracking-widest hover:text-cyan-400 transition-colors">
+      <button
+        onClick={onBack}
+        className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-violet-400 transition-colors hover:text-violet-300"
+      >
         <ChevronRight size={14} className="rotate-180" />
-        Back to Scans
+        Back
       </button>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-[#1a2234]/40 border border-slate-800/50 rounded-2xl p-8 glass space-y-8">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="space-y-6 lg:col-span-2">
+          <div className="space-y-8 rounded-2xl border border-white/5 p-8 glass">
+            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
               <div className="flex items-center gap-4">
-                <div className={`w-16 h-16 rounded-2xl bg-slate-800/50 flex items-center justify-center border border-slate-700/50`}>
-                  {type === 'asteroids' && <Orbit size={32} className="text-cyan-400" />}
-                  {type === 'fireballs' && <Flame size={32} className="text-amber-400" />}
-                  {type === 'solar-flares' && <Sun size={32} className="text-yellow-400" />}
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/5 bg-white/[0.03]">
+                  {type === 'asteroids' && <Orbit size={32} className="text-violet-400" />}
+                  {type === 'fireballs' && <Flame size={32} className="text-orange-400" />}
+                  {type === 'solar-flares' && <Sun size={32} className="text-amber-400" />}
                 </div>
                 <div>
-                  <h3 className="text-2xl font-bold text-white tracking-tight">{getName(item)}</h3>
-                  <p className="text-slate-500 font-mono text-xs uppercase tracking-widest">{getSubId(item)}</p>
+                  <h3 className="text-2xl font-bold tracking-tight text-white">{getName(item)}</h3>
+                  <p className="font-mono text-xs uppercase tracking-widest text-slate-500">{getSubId(item)}</p>
                 </div>
               </div>
-              <div className="flex flex-col items-end gap-2">
+              <div className="flex flex-col items-start gap-2 sm:items-end">
                 <RiskBadge level={item.riskLevel} />
-                <span className="text-[10px] text-slate-500 font-mono">Detection Hash: {detectionHash}</span>
+                <span className="text-xs text-slate-500">{plainThreatDescription(item.riskLevel)}</span>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 pt-8 border-t border-slate-800/50">
+            <div className="grid grid-cols-1 gap-8 border-t border-white/5 pt-8 sm:grid-cols-2">
               {type === 'asteroids' && (
                 <>
-                  <DetailPoint label="Estimated Diameter" value={`${(item as AsteroidDTO).diameterMinKm?.toFixed(3)} - ${(item as AsteroidDTO).diameterMaxKm?.toFixed(3)} km`} />
-                  <DetailPoint label="Velocity" value={`${(item as AsteroidDTO).velocityKmPerSec?.toFixed(2)} km/s`} />
-                  <DetailPoint label="Miss Distance" value={`${Number((item as AsteroidDTO).missDistanceKm).toLocaleString()} km`} />
-                  <DetailPoint label="Close Approach" value={new Date((item as AsteroidDTO).closeApproachDate).toLocaleDateString(undefined, { dateStyle: 'long' })} />
+                  <DetailPoint
+                    label="How big is it?"
+                    value={`${(item as AsteroidDTO).diameterMinKm?.toFixed(3)} – ${(item as AsteroidDTO).diameterMaxKm?.toFixed(3)} km wide`}
+                  />
+                  <DetailPoint
+                    label="How fast?"
+                    value={`${(item as AsteroidDTO).velocityKmPerSec?.toFixed(2)} km/s`}
+                  />
+                  <DetailPoint
+                    label="How close will it get?"
+                    value={`${Number((item as AsteroidDTO).missDistanceKm).toLocaleString()} km from Earth`}
+                  />
+                  <DetailPoint
+                    label="When?"
+                    value={new Date((item as AsteroidDTO).closeApproachDate).toLocaleDateString(undefined, {
+                      dateStyle: 'long',
+                    })}
+                  />
                 </>
               )}
               {type === 'fireballs' && (
                 <>
-                  <DetailPoint label="Event Date" value={(item as FireballDTO).eventDate} />
-                  <DetailPoint label="Total Energy" value={`${(item as FireballDTO).energyJoules?.toFixed(2)} ×10¹⁰ Joules`} />
-                  <DetailPoint label="Impact Energy" value={`${(item as FireballDTO).impactEnergyKt?.toFixed(2)} Kilotons`} />
-                  <DetailPoint label="Altitude" value={(item as FireballDTO).altitudeKm ? `${(item as FireballDTO).altitudeKm?.toFixed(1)} km` : 'Data Unavailable'} />
-                  <DetailPoint label="Coordinates" value={(item as FireballDTO).latitude ? `${(item as FireballDTO).latitude?.toFixed(4)}°, ${(item as FireballDTO).longitude?.toFixed(4)}°` : 'Location Not Triangulated'} />
+                  <DetailPoint label="When" value={(item as FireballDTO).eventDate} />
+                  <DetailPoint
+                    label="Energy released"
+                    value={`${(item as FireballDTO).impactEnergyKt?.toFixed(2)} kilotons`}
+                  />
+                  <DetailPoint
+                    label="Altitude"
+                    value={
+                      (item as FireballDTO).altitudeKm
+                        ? `${(item as FireballDTO).altitudeKm?.toFixed(1)} km up`
+                        : 'Not recorded'
+                    }
+                  />
+                  <DetailPoint
+                    label="Where"
+                    value={
+                      (item as FireballDTO).latitude
+                        ? `${(item as FireballDTO).latitude?.toFixed(2)}°, ${(item as FireballDTO).longitude?.toFixed(2)}°`
+                        : 'Location unknown'
+                    }
+                  />
                 </>
               )}
               {type === 'solar-flares' && (
                 <>
-                  <DetailPoint label="Flare Class" value={(item as SolarFlareDTO).classType} />
-                  <DetailPoint label="Source Location" value={(item as SolarFlareDTO).sourceLocation || 'Active Region Undefined'} />
-                  <DetailPoint label="Begin Time" value={new Date((item as SolarFlareDTO).beginTime).toLocaleString()} />
-                  <DetailPoint label="Peak Time" value={new Date((item as SolarFlareDTO).peakTime).toLocaleString()} />
-                  <DetailPoint label="End Time" value={new Date((item as SolarFlareDTO).endTime).toLocaleString()} />
+                  <DetailPoint label="Flare class" value={(item as SolarFlareDTO).classType} />
+                  <DetailPoint
+                    label="On the Sun"
+                    value={(item as SolarFlareDTO).sourceLocation || 'Unknown region'}
+                  />
+                  <DetailPoint
+                    label="Started"
+                    value={new Date((item as SolarFlareDTO).beginTime).toLocaleString()}
+                  />
+                  <DetailPoint
+                    label="Peaked"
+                    value={new Date((item as SolarFlareDTO).peakTime).toLocaleString()}
+                  />
                 </>
               )}
             </div>
 
-            <div className="space-y-3 pt-8 border-t border-slate-800/50">
-              <div className="flex justify-between text-xs font-bold uppercase tracking-wider">
-                <span className="text-slate-400">Risk Assessment Analysis</span>
-                <span className="text-cyan-400 font-mono">{item.riskScore}/10</span>
+            <div className="space-y-4 border-t border-white/5 pt-8">
+              <div className="flex items-center gap-2">
+                <BookOpen size={16} className="text-violet-400" />
+                <span className="text-sm font-bold text-white">What does this mean?</span>
               </div>
-              <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
-                <div className={`h-full ${item.riskScore >= 7 ? 'bg-red-500' : item.riskScore >= 4 ? 'bg-amber-500' : 'bg-emerald-500'} transition-all duration-1000`} style={{ width: `${item.riskScore * 10}%` }} />
+              <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 p-5">
+                <p className="text-sm leading-relaxed text-slate-300">
+                  {item.riskReason ||
+                    'Scientists are still analyzing this event. Check back soon for an updated explanation.'}
+                </p>
               </div>
-              <p className="text-sm text-slate-400 leading-relaxed italic mt-4">
-                &quot;{item.riskReason || 'Preliminary orbital analysis suggests no immediate threat. Continued monitoring advised.'}&quot;
-              </p>
+              <RiskMeter score={item.riskScore} />
             </div>
           </div>
         </div>
 
         <div className="space-y-6">
-          <div className="bg-[#1a2234]/40 border border-slate-800/50 rounded-2xl p-6 glass">
-            <h4 className="text-xs font-bold text-white uppercase tracking-widest mb-4 flex items-center gap-2">
-              <Activity size={14} className="text-cyan-500" />
-              Real-time Telemetry
+          <div className="rounded-2xl border border-white/5 p-6 glass">
+            <h4 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white">
+              <Activity size={14} className="text-cyan-400" />
+              Signal strength
             </h4>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center text-[10px] font-mono">
-                <span className="text-slate-500 uppercase">Tracking Status</span>
-                <span className="text-emerald-500 uppercase font-bold">Active Lock</span>
-              </div>
-              <div className="flex justify-between items-center text-[10px] font-mono">
-                <span className="text-slate-500 uppercase">Data Integrity</span>
-                <span className="text-cyan-500 uppercase font-bold">99.8% Verified</span>
-              </div>
-              <div className="flex justify-between items-center text-[10px] font-mono">
-                <span className="text-slate-500 uppercase">Signal Source</span>
-                <span className="text-slate-300 uppercase">DSS-14 (Goldstone)</span>
-              </div>
-            </div>
-            <div className="mt-6 pt-6 border-t border-slate-800/50">
-              <div className="h-20 flex items-end gap-1 px-1">
-                {telemetryBars.map((height, i) => (
-                  <div key={i} className="flex-1 bg-cyan-500/20 rounded-t-sm animate-pulse" style={{ height: `${height}%`, animationDelay: `${i * 0.1}s` }} />
-                ))}
-              </div>
+            <div className="flex h-20 items-end gap-1">
+              {telemetryBars.map((height, i) => (
+                <div
+                  key={i}
+                  className="flex-1 rounded-t-sm bg-gradient-to-t from-violet-600/30 to-cyan-400/60"
+                  style={{ height: `${height}%`, animationDelay: `${i * 0.08}s` }}
+                />
+              ))}
             </div>
           </div>
 
-          <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-2xl p-6 relative overflow-hidden group">
-            <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform duration-500">
-              <Shield size={120} className="text-cyan-500" />
-            </div>
-            <h4 className="text-xs font-bold text-cyan-400 uppercase tracking-widest mb-2">Planetary Defense</h4>
-            <p className="text-[10px] text-cyan-500/80 leading-relaxed">
-              Detection data is automatically forwarded to planetary defense networks. Response protocols remain in standby.
+          <div className="relative overflow-hidden rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-6">
+            <Shield size={100} className="absolute -bottom-6 -right-6 text-cyan-500 opacity-[0.06]" />
+            <h4 className="mb-2 text-xs font-bold uppercase tracking-widest text-cyan-400">Good to know</h4>
+            <p className="text-xs leading-relaxed text-cyan-200/70">
+              All data comes from public NASA feeds. Risk labels are simplified so anyone can understand what
+              is happening — no astrophysics degree required.
             </p>
           </div>
         </div>
@@ -727,11 +953,11 @@ function DetailView({
   );
 }
 
-function DetailPoint({ label, value }: { label: string, value: string }) {
+function DetailPoint({ label, value }: { label: string; value: string }) {
   return (
     <div className="space-y-1">
-      <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{label}</div>
-      <div className="text-lg font-semibold text-slate-200 tracking-tight">{value}</div>
+      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{label}</div>
+      <div className="text-lg font-semibold tracking-tight text-slate-200">{value}</div>
     </div>
   );
 }
